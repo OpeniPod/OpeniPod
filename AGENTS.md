@@ -43,8 +43,13 @@ Skills live under `.codex/skills/`. Do not create domain-specific hardware or su
 ## Git history
 
 - Make each commit a meaningful, complete logical unit; do not create checkpoint or WIP commits for every edit.
+- Keep commit subjects at most 50 characters and body lines at most 72 characters.
 - Use concise, descriptive subjects. Add a short body when the reason or behavior is not obvious.
 - Before committing, inspect status and diff, run relevant checks, and exclude unrelated files.
 - Clean up noisy local history before merge when safe, or report that squash or rebase is needed. Do not squash useful independent commits solely to reduce their number.
 - AI agents may create local commits but must never push commits, branches, tags, or refs by any tool. A human performs every push.
 - Before finishing PR-sized work, inspect branch history and report any commits that need cleanup.
+
+Prefer wrapping Markdown prose near 80 characters when helpful, but treat this
+as guidance. Keep longer lines when links, tables, code, or readability benefit.
+Avoid reflowing unrelated text solely to meet a line length target.
