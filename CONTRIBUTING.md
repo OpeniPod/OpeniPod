@@ -36,3 +36,27 @@ AI agents may prepare local commits, commit messages, and PR text. They must nev
 For Markdown prose, 80 characters is a useful target when it improves reading
 or diffs. Longer lines are fine for links, tables, code, or clearer wording.
 Do not reflow unrelated text solely to satisfy a target.
+
+## Linking a PR to an Issue
+
+When a PR completes an Issue, add a closing reference to the PR description:
+
+```text
+Closes #8
+```
+
+Replace `8` with the Issue number. GitHub links the PR to the Issue and closes
+the Issue automatically when the PR is merged into the repository's default
+branch. These keywords only take effect when the PR targets that branch.
+Use them in the description, rather than only in the title or a comment.
+
+For partial work, use an ordinary reference such as `Related to #8` and
+explain which part the PR covers. This mentions the Issue without closing it.
+A separate comment with the PR URL is usually unnecessary.
+
+The PR's **Commits** tab shows its commits. Referencing an Issue in every
+commit is optional; keep the main Issue reference in the PR description.
+For a PR that completes an Issue, you can also create the closing link
+manually through **Development** in the GitHub sidebar, with write access.
+
+See [GitHub's linking guide](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue).
