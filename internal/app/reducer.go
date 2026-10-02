@@ -9,12 +9,14 @@ type pausePlayback struct{}
 type resumePlayback struct{}
 type setVolume struct{ volume int }
 type saveSettings struct{ settings SettingsState }
+type refreshLibrary struct{}
 
 func (playTrack) isCommand()      {}
 func (pausePlayback) isCommand()  {}
 func (resumePlayback) isCommand() {}
 func (setVolume) isCommand()      {}
 func (saveSettings) isCommand()   {}
+func (refreshLibrary) isCommand() {}
 
 // Reduce computes a state transition and its side effects without performing I/O.
 func Reduce(state AppState, event Event) (AppState, []command) {
@@ -37,6 +39,9 @@ func Reduce(state AppState, event Event) (AppState, []command) {
 			case 2:
 				state.Screen = ScreenSettings
 			}
+		case ScreenSettings:
+			state.Error = ""
+			return state, []command{refreshLibrary{}}
 		case ScreenTracks:
 			if len(state.Library.Tracks) > 0 {
 				track := state.Library.Tracks[state.Navigation.TrackIndex]

@@ -36,7 +36,7 @@ func (t *Terminal) Render(state app.AppState) error {
 			if i == state.Navigation.TrackIndex {
 				mark = "> "
 			}
-			fmt.Fprintf(&view, "%s%s — %s\n", mark, track.Title, track.Artist)
+			fmt.Fprintf(&view, "%s%s\n", mark, track.Title)
 		}
 	case app.ScreenNowPlaying:
 		view.WriteString("Now Playing\n\n")
@@ -48,7 +48,7 @@ func (t *Terminal) Render(state app.AppState) error {
 			view.WriteString("Select a track to start\n")
 		}
 	case app.ScreenSettings:
-		fmt.Fprintf(&view, "Settings\n\nVolume: %d%%\n", state.Settings.Volume)
+		fmt.Fprintf(&view, "Settings\n\nVolume: %d%%\n\n> Update Library\n", state.Settings.Volume)
 	}
 	if state.Error != "" {
 		fmt.Fprintf(&view, "\nError: %s\n", state.Error)

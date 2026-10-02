@@ -27,3 +27,7 @@ func (f *Fake) Load(ctx context.Context) ([]music.Track, error) {
 	}
 	return append([]music.Track(nil), f.Tracks...), nil
 }
+
+func (f *Fake) Refresh(ctx context.Context) ([]music.Track, error) {
+	return f.Load(ctx)
+}
