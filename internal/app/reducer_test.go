@@ -17,6 +17,7 @@ func TestScrollClampsSelection(t *testing.T) {
 	}{
 		{"home moves down", ScreenHome, 0, 1, 1},
 		{"home lower bound", ScreenHome, 0, -1, 0},
+		{"home reaches settings", ScreenHome, 1, 1, 2},
 		{"home upper bound", ScreenHome, 2, 1, 2},
 		{"tracks move down", ScreenTracks, 0, 1, 1},
 		{"tracks lower bound", ScreenTracks, 0, -3, 0},
@@ -108,6 +109,20 @@ func TestHomeTracksBack(t *testing.T) {
 	}
 }
 
+func TestHomeSettingsDoesNotRefresh(t *testing.T) {
+	state := AppState{
+		Screen:     ScreenHome,
+		Navigation: NavigationState{HomeIndex: 2},
+	}
+	got, commands := Reduce(state, SelectPressed{})
+	if got.Screen != ScreenSettings {
+		t.Fatalf("select from home led to %v, want settings", got.Screen)
+	}
+	if len(commands) != 0 {
+		t.Fatalf("entering settings changed commands: state=%+v commands=%v", got, commands)
+	}
+}
+
 func TestSelectingTrackRequestsPlayback(t *testing.T) {
 	track := music.Track{ID: "one", Title: "One"}
 	state := AppState{Screen: ScreenTracks, Library: LibraryState{Tracks: []music.Track{track}}}
@@ -128,5 +143,48 @@ func TestLibraryFailureIsVisible(t *testing.T) {
 	state, _ := Reduce(AppState{}, LibraryLoadFailed{Err: errors.New("sample error")})
 	if state.Error != "sample error" {
 		t.Fatalf("error = %q", state.Error)
+	}
+}
+
+func TestSelectingUpdateLibraryRequestsRefresh(t *testing.T) {
+	state := AppState{
+		Screen:  ScreenSettings,
+		Library: LibraryState{Tracks: []music.Track{{ID: "old"}}},
+		Error:   "previous failure",
+	}
+	got, commands := Reduce(state, SelectPressed{})
+	if got.Error != "" || got.Screen != ScreenSettings || len(got.Library.Tracks) != 1 {
+		t.Fatalf("refresh request state = %+v", got)
+	}
+	if len(commands) != 1 {
+		t.Fatalf("commands = %v, want one refresh command", commands)
+	}
+	if _, ok := commands[0].(refreshLibrary); !ok {
+		t.Fatalf("command = %#v, want library refresh", commands[0])
+	}
+}
+
+func TestLibraryRefreshResults(t *testing.T) {
+	oldTrack := music.Track{ID: "old", Title: "Old"}
+	state := AppState{
+		Library:    LibraryState{Tracks: []music.Track{oldTrack, {ID: "second"}}},
+		Navigation: NavigationState{TrackIndex: 1},
+		Player:     PlayerState{Track: oldTrack, HasTrack: true, Status: StatusPlaying},
+	}
+	failed, _ := Reduce(state, LibraryLoadFailed{Err: errors.New("scan failed")})
+	if len(failed.Library.Tracks) != 2 || failed.Error != "scan failed" || failed.Navigation.TrackIndex != 1 {
+		t.Fatalf("failed refresh state = %+v", failed)
+	}
+
+	loaded, _ := Reduce(failed, LibraryLoaded{Tracks: []music.Track{{ID: "new"}}})
+	if loaded.Error != "" || len(loaded.Library.Tracks) != 1 || loaded.Library.Tracks[0].ID != "new" || loaded.Navigation.TrackIndex != 0 {
+		t.Fatalf("successful refresh state = %+v", loaded)
+	}
+	if loaded.Player != state.Player {
+		t.Fatalf("refresh changed current playback: %+v", loaded.Player)
+	}
+	loaded, _ = Reduce(loaded, LibraryLoaded{})
+	if len(loaded.Library.Tracks) != 0 || loaded.Navigation.TrackIndex != 0 {
+		t.Fatalf("empty refresh state = %+v", loaded)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -18,16 +19,17 @@ import (
 )
 
 func main() {
-	if err := run(); err != nil {
+	if err := run(os.Args[1:], os.Stdin, os.Stdout); err != nil {
 		slog.Error("player stopped", "error", err)
 		os.Exit(1)
 	}
 }
 
-func run() error {
+func run(args []string, in *os.File, out io.Writer) error {
 	flags := flag.NewFlagSet("player", flag.ContinueOnError)
 	platform := flags.String("platform", "desktop", "platform backend (desktop)")
-	if err := flags.Parse(os.Args[1:]); err != nil {
+	musicDir := flags.String("music-dir", "", "music directory with a saved library index (empty: sample library)")
+	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
 		}
@@ -39,12 +41,16 @@ func run() error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
+	var musicLibrary app.Library = library.NewFake()
+	if *musicDir != "" {
+		musicLibrary = library.NewFilesystem(*musicDir)
+	}
 	application := app.New(
 		player.NewFake(),
-		library.NewFake(),
+		musicLibrary,
 		storage.NewMemory(50),
-		input.NewKeyboard(os.Stdin),
-		ui.NewTerminal(os.Stdout),
+		input.NewKeyboard(in),
+		ui.NewTerminal(out),
 	)
 	return application.Run(ctx)
 }

@@ -24,7 +24,7 @@ internal/library ─────────────────────
 Arrows show direct Go imports. `app` uses player, library, and storage through
 interfaces; `cmd/player` supplies their concrete implementations.
 
-`music` has the small `Track` type. `app` defines events, `AppState`, the reducer, and consumer-side interfaces. `input` converts keys into events. `ui` renders a state snapshot. `player`, `library`, and `storage` are concrete fake adapters. `cmd/player` wires them together. The application core imports no terminal, audio, or board-specific package.
+`music` has the small `Track` type. `app` defines events, `AppState`, the reducer, and consumer-side interfaces. `input` converts keys into events. `ui` renders a state snapshot. `library` supplies filesystem and fake adapters; `player` and `storage` are concrete fake adapters. `cmd/player` wires them together. The application core imports no terminal, audio, or board-specific package.
 
 ## State and event flow
 
@@ -40,9 +40,18 @@ keyboard key → input event → App → Reduce → state + command
                                         App → Reduce → Render(state)
 ```
 
-Events are Go types, not string tags. `SelectPressed` on a track requests `Play`; the fake player emits `PlaybackStarted`; only that event marks playback as playing. Library and settings are loaded at startup through their interfaces. A library failure becomes visible in state. Command and rendering failures return with context to `main`, where `slog` reports them once.
+Events are Go types, not string tags. `SelectPressed` on a track requests
+`Play`; the fake player emits `PlaybackStarted`; only that event marks playback
+as playing. Library and settings are loaded at startup through their
+interfaces. The Settings screen exposes `Update Library` as its only selectable
+item; selecting it invokes `Library.Refresh` as a synchronous one-off
+operation. The app waits for it to finish and replaces its track list only
+after success. A load or refresh failure becomes visible in state; a refresh
+failure preserves the existing in-memory list and saved index. Command and
+rendering failures return with context to `main`, where `slog` reports them
+once.
 
-Home and track-list movement **clamps** at the first and last item. Next and previous track commands wrap around the sample library. Volume clamps to 0..100. Back returns to Home. These choices keep the initial navigation small and predictable.
+Home and track-list movement **clamps** at the first and last item. Next and previous track commands wrap around the loaded library. Volume clamps to 0..100. Back returns to Home. These choices keep the initial navigation small and predictable.
 
 ## Concurrency and shutdown
 
@@ -51,5 +60,18 @@ The keyboard reader is the only worker goroutine in this slice. It sends input e
 ## Adapters and future hardware
 
 `FakeLibrary` supplies stable sample tracks. `FakePlayer` records the current track and reports playback events without audio. `Memory` stores volume settings only until process exit. These make UI and application work possible without music files or a board.
+
+`Filesystem` implements the same Library interface and is selected by
+`--music-dir` in `cmd/player`. It stores a versioned, root-specific index at
+`<cleaned-absolute-music-root>/.openipod-library.json`. A missing index causes
+the first `Load` to scan recursively and atomically save the result; subsequent
+loads read the index only, without walking the directory or statting tracks.
+`Refresh` performs that scan and atomic replacement synchronously. It filters
+regular files by extension and returns tracks sorted by path. Track IDs are
+SHA-256 hashes of cleaned absolute paths. Scans observe context cancellation
+and return no partial list after a read or save error. Malformed, mismatched,
+or incompatible indexes are errors rather than reasons to rescan. It owns no
+application state, starts no goroutines, and uses no background scan or
+filesystem watcher. The fake library remains the default without a directory.
 
 An Orange Pi input adapter can later translate GPIO buttons or a rotary encoder into the same events as the keyboard. A display adapter can render the same `AppState` snapshot instead of the terminal UI. A real player adapter can implement the small Player interface and report playback events. These adapters should live outside `internal/app`; their composition belongs in a platform-specific entry point or wiring code. This prototype makes no claims about device drivers, audio decoding, or deployment yet.

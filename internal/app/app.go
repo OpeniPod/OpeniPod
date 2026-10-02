@@ -18,6 +18,7 @@ type Player interface {
 
 type Library interface {
 	Load(context.Context) ([]music.Track, error)
+	Refresh(context.Context) ([]music.Track, error)
 }
 
 type Storage interface {
@@ -154,6 +155,17 @@ func (a *App) Run(ctx context.Context) error {
 }
 
 func (a *App) apply(ctx context.Context, event Event) error {
+	if err := a.update(ctx, event); err != nil {
+		return err
+	}
+	if ctx.Err() != nil {
+		return nil
+	}
+	return a.render()
+}
+
+// update applies an event and its commands without rendering intermediate states.
+func (a *App) update(ctx context.Context, event Event) error {
 	next, commands := Reduce(a.state, event)
 	a.state = next
 	for _, command := range commands {
@@ -164,7 +176,7 @@ func (a *App) apply(ctx context.Context, event Event) error {
 			return err
 		}
 	}
-	return a.render()
+	return nil
 }
 
 func (a *App) execute(ctx context.Context, command command) error {
@@ -189,6 +201,15 @@ func (a *App) execute(ctx context.Context, command command) error {
 		if err := a.storage.SaveSettings(ctx, c.settings); err != nil {
 			return fmt.Errorf("save settings: %w", err)
 		}
+	case refreshLibrary:
+		tracks, err := a.library.Refresh(ctx)
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if err != nil {
+			return a.update(ctx, LibraryLoadFailed{Err: fmt.Errorf("update library: %w", err)})
+		}
+		return a.update(ctx, LibraryLoaded{Tracks: tracks})
 	}
 	return nil
 }
