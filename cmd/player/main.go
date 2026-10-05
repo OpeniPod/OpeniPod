@@ -39,8 +39,14 @@ func run() error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
+	
+	audioPlayer, err := player.NewPlayer()
+	if err != nil {
+		return fmt.Errorf("create audio player: %w", err)
+	}
+
 	application := app.New(
-		player.NewFake(),
+		audioPlayer,
 		library.NewFake(),
 		storage.NewMemory(50),
 		input.NewKeyboard(os.Stdin),

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -14,6 +15,7 @@ type Player interface {
 	Pause(context.Context) error
 	Resume(context.Context) error
 	SetVolume(context.Context, int) error
+	Close() error
 }
 
 type Library interface {
@@ -54,12 +56,15 @@ func New(player Player, library Library, storage Storage, input Input, ui Render
 }
 
 // Run owns all state mutations. Only input collection runs in a separate goroutine.
-func (a *App) Run(ctx context.Context) error {
+func (a *App) Run(ctx context.Context) (runErr error) {
 	runCtx, cancel := context.WithCancel(ctx)
 	var inputWorker sync.WaitGroup
 	defer func() {
 		cancel()
 		inputWorker.Wait()
+		if err := a.player.Close(); err != nil {
+			runErr = errors.Join(runErr, fmt.Errorf("close player: %w", err))
+		}
 	}()
 
 	if err := a.render(); err != nil {
