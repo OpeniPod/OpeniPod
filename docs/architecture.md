@@ -46,7 +46,20 @@ Home and track-list movement **clamps** at the first and last item. Next and pre
 
 ## Concurrency and shutdown
 
-The keyboard reader is the only worker goroutine in this slice. It sends input events to a buffered channel. The fake player has a buffered event channel but starts no goroutine. The App loop selects input events, player events, and context cancellation, then changes state sequentially. It cancels and waits for the keyboard reader on exit. On Linux the keyboard reader polls with a short timeout, so cancellation can release terminal raw mode and restore terminal settings. No mutex protects AppState because it has one owner.
+The keyboard reader sends input events to a buffered channel. The App loop
+selects input events, player events, and context cancellation, then changes
+state sequentially. On exit it cancels and waits for the keyboard reader, then
+calls `Player.Close` on every exit path. The real player stops speaker output,
+closes the active decoder, and waits for any completion callback worker. The
+fake player implements `Close` as a no-op. On Linux the keyboard reader polls
+with a short timeout, so cancellation can release terminal raw mode and
+restore terminal settings. No mutex protects AppState because it has one
+owner.
+
+Beep's `speaker.Close` stops audio playback, but its Oto dependency documents
+that the underlying driver context cannot be closed. The application creates
+no separate audio process; the operating system reclaims the driver context
+when the application process exits.
 
 ## Adapters and future hardware
 
