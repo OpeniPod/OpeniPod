@@ -56,6 +56,16 @@ func (w waitingInput) Run(ctx context.Context, _ chan<- app.Event) error {
 	return ctx.Err()
 }
 
+type closeTrackingPlayer struct {
+	app.Player
+	closeCalls int
+}
+
+func (p *closeTrackingPlayer) Close() error {
+	p.closeCalls++
+	return nil
+}
+
 type silentUI struct{}
 
 func (silentUI) Render(app.AppState) error { return nil }
@@ -98,7 +108,8 @@ func TestKeyboardStyleEventsReachPlayerAndUI(t *testing.T) {
 
 func TestRunWaitsForInputShutdown(t *testing.T) {
 	started := make(chan struct{})
-	application := app.New(player.NewFake(), library.NewFake(), storage.NewMemory(50), waitingInput{started}, silentUI{})
+	trackedPlayer := &closeTrackingPlayer{Player: player.NewFake()}
+	application := app.New(trackedPlayer, library.NewFake(), storage.NewMemory(50), waitingInput{started}, silentUI{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	result := make(chan error, 1)
@@ -116,6 +127,9 @@ func TestRunWaitsForInputShutdown(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("App did not stop after cancellation")
+	}
+	if trackedPlayer.closeCalls != 1 {
+		t.Fatalf("player Close called %d times, want once", trackedPlayer.closeCalls)
 	}
 }
 
