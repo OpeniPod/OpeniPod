@@ -16,6 +16,7 @@ type Player interface {
 	Pause(context.Context) error
 	Resume(context.Context) error
 	SetVolume(context.Context, int) error
+	Close() error
 }
 
 type Library interface {
@@ -67,6 +68,9 @@ func (a *App) Run(ctx context.Context) (result error) {
 	defer func() {
 		cancel()
 		inputWorker.Wait()
+		if err := a.player.Close(); err != nil {
+			runErr = errors.Join(runErr, fmt.Errorf("close player: %w", err))
+		}
 	}()
 
 	if err := a.render(); err != nil {

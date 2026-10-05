@@ -51,12 +51,14 @@ func run(args []string, in *os.File, out io.Writer) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	var musicLibrary app.Library = library.NewFake()
-	if *musicDir != "" {
-		musicLibrary = library.NewFilesystem(*musicDir)
+	
+	audioPlayer, err := player.NewPlayer()
+	if err != nil {
+		return fmt.Errorf("create audio player: %w", err)
 	}
+
 	application := app.New(
-		player.NewFake(),
+		audioPlayer,
 		musicLibrary,
 		storage.NewFile(*settingsFile),
 		input.NewKeyboard(in),
