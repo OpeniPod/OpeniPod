@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -56,6 +57,45 @@ func (w waitingInput) Run(ctx context.Context, _ chan<- app.Event) error {
 type silentUI struct{}
 
 func (silentUI) Render(app.AppState) error { return nil }
+
+type settingsInput struct{ events []app.Event }
+
+func (s settingsInput) Run(ctx context.Context, events chan<- app.Event) error {
+	for _, event := range s.events {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case events <- event:
+		}
+	}
+	return nil
+}
+
+func TestSettingsPersistAcrossAppRestarts(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	firstPlayer := player.NewFake()
+	first := app.New(firstPlayer, library.NewFake(), storage.NewFile(path), settingsInput{
+		events: []app.Event{app.VolumeChanged{Delta: 20}, app.QuitRequested{}},
+	}, silentUI{})
+	if err := first.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if firstPlayer.Volume != 70 {
+		t.Fatalf("first volume = %d, want 70", firstPlayer.Volume)
+	}
+	secondPlayer := player.NewFake()
+	second := app.New(secondPlayer, library.NewFake(), storage.NewFile(path), settingsInput{
+		events: []app.Event{app.QuitRequested{}},
+	}, silentUI{})
+	if err := second.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if secondPlayer.Volume != 70 {
+		t.Fatalf("restored volume = %d, want 70", secondPlayer.Volume)
+	}
+}
 
 type burstInput struct{}
 

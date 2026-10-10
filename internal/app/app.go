@@ -2,8 +2,10 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/OpeniPod/OpeniPod/internal/music"
 )
@@ -34,17 +36,21 @@ type Renderer interface {
 }
 
 type App struct {
-	state   AppState
-	player  Player
-	library Library
-	storage Storage
-	input   Input
-	ui      Renderer
+	state           AppState
+	player          Player
+	library         Library
+	storage         Storage
+	input           Input
+	ui              Renderer
+	settingsTimer   *time.Timer
+	savedSettings   SettingsState
+	pendingSettings SettingsState
+	settingsDirty   bool
 }
 
 func New(player Player, library Library, storage Storage, input Input, ui Renderer) *App {
 	return &App{
-		state:   AppState{Screen: ScreenHome, Settings: SettingsState{Volume: 50}},
+		state:   AppState{Screen: ScreenHome, Settings: DefaultSettings()},
 		player:  player,
 		library: library,
 		storage: storage,
@@ -54,7 +60,7 @@ func New(player Player, library Library, storage Storage, input Input, ui Render
 }
 
 // Run owns all state mutations. Only input collection runs in a separate goroutine.
-func (a *App) Run(ctx context.Context) error {
+func (a *App) Run(ctx context.Context) (result error) {
 	runCtx, cancel := context.WithCancel(ctx)
 	var inputWorker sync.WaitGroup
 	defer func() {
@@ -75,6 +81,20 @@ func (a *App) Run(ctx context.Context) error {
 	if err := a.apply(runCtx, SettingsLoaded{Settings: settings}); err != nil {
 		return err
 	}
+	a.savedSettings = a.state.Settings
+	a.settingsDirty = false
+	a.settingsTimer = time.NewTimer(time.Hour)
+	a.settingsTimer.Stop()
+	defer func() {
+		a.settingsTimer.Stop()
+		// Include a state change even if executing its player command failed.
+		a.pendingSettings = a.state.Settings
+		a.settingsDirty = a.pendingSettings != a.savedSettings
+		// The run context may already be cancelled when shutdown starts.
+		flushCtx, flushCancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+		defer flushCancel()
+		result = errors.Join(result, a.flushSettings(flushCtx))
+	}()
 	if err := a.player.SetVolume(runCtx, a.state.Settings.Volume); err != nil {
 		if runCtx.Err() != nil {
 			return nil
@@ -126,6 +146,13 @@ func (a *App) Run(ctx context.Context) error {
 		select {
 		case <-runCtx.Done():
 			return nil
+		case <-a.settingsTimer.C:
+			if err := a.flushSettings(runCtx); err != nil {
+				if runCtx.Err() != nil {
+					return nil
+				}
+				return err
+			}
 		case err := <-inputResultStream:
 			inputResultStream = nil
 			if err != nil && runCtx.Err() == nil {
@@ -186,10 +213,25 @@ func (a *App) execute(ctx context.Context, command command) error {
 			return fmt.Errorf("set volume: %w", err)
 		}
 	case saveSettings:
-		if err := a.storage.SaveSettings(ctx, c.settings); err != nil {
-			return fmt.Errorf("save settings: %w", err)
+		a.pendingSettings = c.settings
+		a.settingsDirty = c.settings != a.savedSettings
+		a.settingsTimer.Stop()
+		if a.settingsDirty {
+			a.settingsTimer.Reset(500 * time.Millisecond)
 		}
 	}
+	return nil
+}
+
+func (a *App) flushSettings(ctx context.Context) error {
+	if !a.settingsDirty {
+		return nil
+	}
+	if err := a.storage.SaveSettings(ctx, a.pendingSettings); err != nil {
+		return fmt.Errorf("save settings: %w", err)
+	}
+	a.savedSettings = a.pendingSettings
+	a.settingsDirty = false
 	return nil
 }
 

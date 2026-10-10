@@ -72,6 +72,21 @@ func TestVolumeClampsAndRequestsEffects(t *testing.T) {
 	}
 }
 
+func TestSettingsLoaded(t *testing.T) {
+	for _, tc := range []struct{ volume, want int }{
+		{-10, 0}, {0, 0}, {65, 65}, {110, 100},
+	} {
+		settings := DefaultSettings()
+		settings.Volume = tc.volume
+		got, commands := Reduce(AppState{Settings: DefaultSettings()}, SettingsLoaded{Settings: settings})
+		want := settings
+		want.Volume = tc.want
+		if got.Settings != want || len(commands) != 0 {
+			t.Fatalf("loaded %d: settings=%+v, commands=%v; want %+v and no commands", tc.volume, got.Settings, commands, want)
+		}
+	}
+}
+
 func TestPlaybackEvents(t *testing.T) {
 	track := music.Track{ID: "digital-love", Title: "Digital Love"}
 	state, _ := Reduce(AppState{}, PlaybackStarted{Track: track})
