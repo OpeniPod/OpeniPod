@@ -67,7 +67,9 @@ func Reduce(state AppState, event Event) (AppState, []command) {
 			return state, []command{setVolume{volume}, saveSettings{state.Settings}}
 		}
 	case SettingsLoaded:
-		state.Settings.Volume = clamp(e.Settings.Volume, 0, 100)
+		settings := e.Settings
+		settings.Volume = clamp(settings.Volume, 0, 100)
+		state.Settings = settings
 	case LibraryLoaded:
 		state.Library.Tracks = append([]music.Track(nil), e.Tracks...)
 		state.Navigation.TrackIndex = clamp(state.Navigation.TrackIndex, 0, max(0, len(e.Tracks)-1))
