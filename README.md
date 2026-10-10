@@ -2,7 +2,7 @@
 
 OpeniPod is a team learning project for a standalone music player inspired by the iPod. The intended device uses an Orange Pi Zero, a small display, physical controls, local music, and Linux. This repository currently contains an **initial architecture prototype**, not a finished player.
 
-The runnable desktop slice has a terminal UI, keyboard input, a filesystem or sample music library, a fake player that emits playback events without sound, and in-memory volume settings. It demonstrates the application flow while the hardware and real audio work remain separate.
+The runnable desktop slice has a terminal UI, keyboard input, a filesystem or sample music library, a fake player that emits playback events without sound, and file-backed volume settings. It demonstrates the application flow while the hardware and real audio work remain separate.
 
 ## Build and run
 
@@ -53,6 +53,14 @@ Without `--music-dir` (or with an empty value), the four sample tracks remain
 available for development. File selection is based on extensions; audio
 contents are not validated or decoded.
 
+Settings are restored on startup and saved 500 ms after the last change.
+Pending changes are saved before shutdown. On Linux the default
+file is `$XDG_CONFIG_HOME/openipod/settings.json`, or
+`$HOME/.config/openipod/settings.json` when `XDG_CONFIG_HOME` is unset.
+Use `--settings-file /path/to/settings.json` to choose another location.
+A missing file starts with default settings (volume 50%); an invalid file causes
+a startup error. Parent directories are created on the first save.
+
 ## Controls
 
 | Key | Action |
@@ -67,10 +75,10 @@ contents are not validated or decoded.
 | `+` / `-` | Volume by 10% |
 | `q` | Quit |
 
-Open **Tracks**, choose a track, then view its fake playback state in **Now
-Playing**. No audio is produced. Library updates run synchronously and replace
-the track list on success.
-Volume settings live only for the current process.
+Open **Tracks**, choose a track from the filesystem or sample library, then view
+its fake playback state in **Now Playing**. No audio is produced. Library
+updates run synchronously and replace the track list on success. Volume settings
+persist across restarts.
 
 ## Checks
 

@@ -24,7 +24,12 @@ internal/library ─────────────────────
 Arrows show direct Go imports. `app` uses player, library, and storage through
 interfaces; `cmd/player` supplies their concrete implementations.
 
-`music` has the small `Track` type. `app` defines events, `AppState`, the reducer, and consumer-side interfaces. `input` converts keys into events. `ui` renders a state snapshot. `library` supplies filesystem and fake adapters; `player` and `storage` are concrete fake adapters. `cmd/player` wires them together. The application core imports no terminal, audio, or board-specific package.
+`music` has the small `Track` type. `app` defines events, `AppState`, the reducer,
+and consumer-side interfaces. `input` converts keys into events. `ui` renders a
+state snapshot. `library` supplies filesystem and fake adapters; `player`
+supplies the fake player; `storage` supplies file and memory adapters.
+`cmd/player` wires them together. The application core imports no terminal,
+audio, or board-specific package.
 
 ## State and event flow
 
@@ -57,9 +62,34 @@ Home and track-list movement **clamps** at the first and last item. Next and pre
 
 The keyboard reader is the only worker goroutine in this slice. It sends input events to a buffered channel. The fake player has a buffered event channel but starts no goroutine. The App loop selects input events, player events, and context cancellation, then changes state sequentially. It cancels and waits for the keyboard reader on exit. On Linux the keyboard reader polls with a short timeout, so cancellation can release terminal raw mode and restore terminal settings. No mutex protects AppState because it has one owner.
 
+The App loop also handles a settings-save timer. Settings writes run
+synchronously in that loop; storage starts no worker goroutine. After settings
+have loaded successfully, orderly exits through quit, input EOF, cancellation,
+or an error flush pending changes. The flush uses a fresh context independent
+of cancellation, with a two-second timeout. Save errors are returned alongside
+any existing application error. The entry point handles both interrupt and
+SIGTERM; abrupt termination or power loss can lose pending changes.
+
 ## Adapters and future hardware
 
-`FakeLibrary` supplies stable sample tracks. `FakePlayer` records the current track and reports playback events without audio. `Memory` stores volume settings only until process exit. These make UI and application work possible without music files or a board.
+`FakeLibrary` supplies stable sample tracks. `FakePlayer` records the current
+track and reports playback events without audio. `Memory` stores settings only
+until process exit and remains available for tests. These make UI and
+application work possible without music files or a board.
+
+`File` implements the same Storage interface and is used by `cmd/player`.
+It stores the complete `SettingsState` as compact JSON. The default path is
+`openipod/settings.json` under `os.UserConfigDir()`; `--settings-file` overrides
+it. A missing file uses default settings, including volume 50%; invalid JSON
+or a read error prevents startup. Missing fields retain their default values.
+Saving creates parent directories, writes and syncs a temporary file in the
+same directory, then renames it over the destination.
+
+App owns the save schedule: each settings change restarts a 500 ms timer, so
+rapid changes are combined into one write after changes stop. Returning to the
+last saved values cancels the pending write. Navigation and rendering do not
+save settings. The reducer emits a save command; App schedules it and calls
+Storage when the timer fires or pending changes need flushing on shutdown.
 
 `Filesystem` implements the same Library interface and is selected by
 `--music-dir` in `cmd/player`. It stores a versioned, root-specific index at

@@ -12,7 +12,9 @@ type Memory struct {
 }
 
 func NewMemory(volume int) *Memory {
-	return &Memory{settings: app.SettingsState{Volume: volume}}
+	settings := app.DefaultSettings()
+	settings.Volume = volume
+	return &Memory{settings: settings}
 }
 
 func (m *Memory) LoadSettings(ctx context.Context) (app.SettingsState, error) {
