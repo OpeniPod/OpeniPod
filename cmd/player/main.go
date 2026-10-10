@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"syscall"
 
 	"github.com/OpeniPod/OpeniPod/internal/app"
 	"github.com/OpeniPod/OpeniPod/internal/input"
@@ -29,6 +31,7 @@ func run(args []string, in *os.File, out io.Writer) error {
 	flags := flag.NewFlagSet("player", flag.ContinueOnError)
 	platform := flags.String("platform", "desktop", "platform backend (desktop)")
 	musicDir := flags.String("music-dir", "", "music directory with a saved library index (empty: sample library)")
+	settingsFile := flags.String("settings-file", "", "settings JSON path (default: user config directory/openipod/settings.json)")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -38,8 +41,15 @@ func run(args []string, in *os.File, out io.Writer) error {
 	if *platform != "desktop" {
 		return fmt.Errorf("unsupported platform %q (available: desktop)", *platform)
 	}
+	if *settingsFile == "" {
+		configDir, err := os.UserConfigDir()
+		if err != nil {
+			return fmt.Errorf("resolve settings directory: %w", err)
+		}
+		*settingsFile = filepath.Join(configDir, "openipod", "settings.json")
+	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	var musicLibrary app.Library = library.NewFake()
 	if *musicDir != "" {
@@ -48,7 +58,7 @@ func run(args []string, in *os.File, out io.Writer) error {
 	application := app.New(
 		player.NewFake(),
 		musicLibrary,
-		storage.NewMemory(50),
+		storage.NewFile(*settingsFile),
 		input.NewKeyboard(in),
 		ui.NewTerminal(out),
 	)

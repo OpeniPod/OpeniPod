@@ -41,7 +41,12 @@ type LibraryState struct {
 }
 
 type SettingsState struct {
-	Volume int
+	Volume int `json:"volume"`
+}
+
+// DefaultSettings supplies defaults, including fields absent from older files.
+func DefaultSettings() SettingsState {
+	return SettingsState{Volume: 50}
 }
 
 type AppState struct {

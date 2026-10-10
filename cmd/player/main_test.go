@@ -127,6 +127,7 @@ func TestRunMenuUpdateRecoversInvalidIndex(t *testing.T) {
 
 func runWithInput(t *testing.T, args []string, keys string) string {
 	t.Helper()
+	args = append([]string{"--settings-file", filepath.Join(t.TempDir(), "settings.json")}, args...)
 	in, writer, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)

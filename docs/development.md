@@ -6,6 +6,24 @@ To add an event, define a concrete type in `event.go`, add its `isEvent` method,
 
 To add a backend, implement the consumer interface in `internal/app/app.go` and wire the implementation in `cmd/player/main.go`. Keep interfaces small and based on current needs. A real player sends typed player events back to App. A UI backend implements `Render(AppState)` and should only display the supplied state. Business logic belongs in the reducer and App loop, never in UI, input, or hardware code. Avoid globals and direct adapter-to-adapter calls.
 
+The storage package also provides `storage.NewFile(path)`, implementing the same
+`app.Storage` interface as `Memory`. It reads and writes the complete
+`SettingsState` as compact JSON. A missing file returns `app.DefaultSettings()`
+without creating a file. Missing fields in older JSON objects retain their
+defaults; explicit zero values are preserved. Invalid documents and read errors
+are returned to the caller. Saving creates parent directories as needed and
+replaces the destination using a temporary file in the same directory.
+
+When adding settings, define their defaults in `app.DefaultSettings()` and use
+stable JSON field names in `SettingsState`. The desktop entry point uses `File`
+with a default path under `os.UserConfigDir()`, overridable by `--settings-file`.
+`Memory` remains available for tests. Settings are saved after 500 ms without
+another settings change. Returning to the last saved values cancels the write;
+rendering and navigation do not trigger writes. Pending changes are saved on
+quit, input EOF, cancellation, or an error, using a fresh shutdown context.
+The desktop entry point handles both interrupt and SIGTERM. Sudden power loss
+can lose changes still waiting for the timer; save errors are returned.
+
 Useful commands:
 
 ```sh
