@@ -2,6 +2,9 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -154,7 +157,11 @@ func TestRunPersistsEqualizerPresetAcrossRuns(t *testing.T) {
 
 func runWithInput(t *testing.T, args []string, keys string) string {
 	t.Helper()
-	args = append([]string{"--settings-file", filepath.Join(t.TempDir(), "settings.json")}, args...)
+	testDir := t.TempDir()
+	args = append([]string{
+		"--settings-file", filepath.Join(testDir, "settings.json"),
+		"--log-file", filepath.Join(testDir, "player.log"),
+	}, args...)
 	in, writer, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
@@ -167,14 +174,30 @@ func runWithInput(t *testing.T, args []string, keys string) string {
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
 	}
-	var out bytes.Buffer
-	if err := runWithPlayerFactory(args, in, &out, func() (app.Player, error) {
-		return player.NewFake(), nil
-	}); err != nil {
+	var out, stderr bytes.Buffer
+	if err := runWith(args, in, &out, &stderr); err != nil {
 		t.Fatal(err)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("diagnostics reached stderr in file mode: %s", &stderr)
 	}
 	return out.String()
 }
+
+func runWith(args []string, stdin *os.File, stdout, stderr io.Writer) error {
+	testDir, err := os.MkdirTemp("", "openipod-player-test-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(testDir)
+	args = append([]string{
+		"--settings-file", filepath.Join(testDir, "settings.json"),
+	}, args...)
+	return runWithPlayerFactory(args, stdin, stdout, stderr, func() (app.Player, error) {
+		return player.NewFake(), nil
+	})
+}
+
 func writePlayerTestFile(t *testing.T, root, name string) {
 	t.Helper()
 	data := []byte("fixture")
@@ -201,5 +224,143 @@ func isPlayerFixtureExtension(extension string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func TestRunFileLoggingKeepsUISeparate(t *testing.T) {
+	stdin, err := os.CreateTemp(t.TempDir(), "input")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stdin.Close()
+	if _, err := stdin.WriteString("\n\n"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := stdin.Seek(0, 0); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "player.log")
+	var stdout, stderr bytes.Buffer
+	if err := runWith([]string{"--log-file", path, "--log-level", "debug"}, stdin, &stdout, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	if stderr.Len() != 0 || strings.Contains(stdout.String(), "application started") {
+		t.Fatalf("logs reached terminal output: stderr=%s stdout=%s", &stderr, &stdout)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(data, []byte("playback started")) || !bytes.Contains(data, []byte("\"level\":\"DEBUG\"")) {
+		t.Fatalf("missing runtime diagnostics: %s", data)
+	}
+}
+
+func TestFilesystemLibraryDiagnostics(t *testing.T) {
+	for _, recoverIndex := range []bool{false, true} {
+		name := "startup"
+		if recoverIndex {
+			name = "menu refresh after invalid index"
+		}
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			writePlayerTestFile(t, root, "track.mp3")
+			keys := "\n\n"
+			if recoverIndex {
+				if err := os.WriteFile(filepath.Join(root, ".openipod-library.json"), []byte("invalid JSON"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				keys = "jj\n\nbkk\n\n"
+			}
+			path := filepath.Join(t.TempDir(), "player.log")
+			output := runWithInput(t, []string{"--music-dir", root, "--log-file", path}, keys)
+			if !strings.Contains(output, "Playing") || strings.Contains(output, "application started") {
+				t.Fatalf("filesystem playback or UI/log separation failed: %s", output)
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			decoder := json.NewDecoder(bytes.NewReader(data))
+			counts := make(map[string]int)
+			for decoder.More() {
+				var record map[string]any
+				if err := decoder.Decode(&record); err != nil {
+					t.Fatal(err)
+				}
+				counts[record["msg"].(string)]++
+				if record["level"] == "ERROR" {
+					t.Fatalf("recoverable library failure became fatal: %v", record)
+				}
+				if record["msg"] == "library loaded" && record["track_count"] != float64(1) {
+					t.Fatalf("missing filesystem track count: %v", record)
+				}
+				if record["msg"] == "playback started" {
+					if id, ok := record["track_id"].(string); !ok || id == "" {
+						t.Fatalf("missing filesystem track ID: %v", record)
+					}
+				}
+			}
+			wantFailures := 0
+			if recoverIndex {
+				wantFailures = 1
+			}
+			if counts["library loaded"] != 1 || counts["library load failed"] != wantFailures || counts["playback started"] != 1 {
+				t.Fatalf("missing or duplicate filesystem diagnostics: %v", counts)
+			}
+		})
+	}
+}
+
+func TestRunJournalFailureIsAlreadyRecorded(t *testing.T) {
+	stdin, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stdin.Close() // Force a real keyboard-adapter failure.
+	var stdout, stderr bytes.Buffer
+	err = runWith([]string{"--log-target", "journal"}, stdin, &stdout, &stderr)
+	var recorded *loggedError
+	if !errors.As(err, &recorded) {
+		t.Fatalf("runtime failure not marked as logged: %v", err)
+	}
+	count := 0
+	for _, line := range strings.Split(strings.TrimSpace(stderr.String()), "\n") {
+		if len(line) < 3 {
+			t.Fatalf("invalid journal output: %q", line)
+		}
+		var record map[string]any
+		if err := json.Unmarshal([]byte(line[3:]), &record); err != nil {
+			t.Fatal(err)
+		}
+		if record["level"] == "ERROR" {
+			count++
+			if line[:3] != "<3>" || record["component"] != "input" || record["operation"] != "read" {
+				t.Fatalf("wrong journal error: %s", line)
+			}
+		}
+	}
+	if count != 1 || strings.Contains(stdout.String(), "operation failed") {
+		t.Fatalf("error duplicated or leaked to UI: %s", &stderr)
+	}
+}
+
+func TestHelpAndBadConfigurationDoNotStartUI(t *testing.T) {
+	for _, args := range [][]string{
+		{"--help"}, {"--log-level", "verbose"}, {"--log-target", "console"},
+		{"--platform", "unknown"}, {"unexpected"},
+	} {
+		var stdout, stderr bytes.Buffer
+		err := runWith(args, nil, &stdout, &stderr)
+		if args[0] == "--help" {
+			if err != nil || !strings.Contains(stderr.String(), "log-level") {
+				t.Fatalf("help output: %v, %s", err, &stderr)
+			}
+		} else if err == nil {
+			t.Fatalf("bad configuration accepted: %v", args)
+		}
+		if stdout.Len() != 0 {
+			t.Fatalf("UI started before configuration validation: %v", args)
+		}
 	}
 }

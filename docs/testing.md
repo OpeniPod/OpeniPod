@@ -81,3 +81,12 @@ Resize and cover/uncover the window, checking that the image retains its
 aspect ratio and redraws. Close using the window manager and restart to check
 settings persistence. Also check `q`, Ctrl+C, and SIGTERM shutdown. GUI smoke
 tests require a display and audio device and are not part of `make check`.
+
+Diagnostic tests cover lifecycle/playback records, recovery and fatal failures,
+absence of error duplication, filtering, concurrent journal priorities and UI
+separation. Integration checks also cover filesystem-library startup and
+recovery through Update Library, plus successful, failed and cancelled
+refresh diagnostics without duplicate records. On Linux with a running
+journald, build the player and run
+`bash scripts/check-journal.sh ./player` for real journal collection and query
+checks. See [logging](logging.md) for prerequisites and storage configuration.

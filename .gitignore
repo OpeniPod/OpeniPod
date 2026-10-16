@@ -1,3 +1,15 @@
 /player
 *.test
 *.out
+
+# Personal container development setup
+/.devcontainer/
+/.devcontainer.json
+/.dockerignore
+/Dockerfile
+/Dockerfile.*
+/*.Dockerfile
+/docker-compose*.yml
+/docker-compose*.yaml
+/compose*.yml
+/compose*.yaml
