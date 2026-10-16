@@ -53,6 +53,12 @@ Without `--music-dir` (or with an empty value), the four sample tracks remain
 available for development. File selection is based on extensions; audio
 contents are not validated or decoded.
 
+Diagnostics default to a separate JSON file at
+`$XDG_STATE_HOME/openipod/player.log` (or
+`$HOME/.local/state/openipod/player.log`). Use `--log-level=debug` for more
+detail, and `--log-file` to choose a development file. Linux journal setup,
+retention and viewing commands are in [diagnostic logging](docs/logging.md).
+
 ## Controls
 
 | Key | Action |
@@ -94,4 +100,4 @@ keyboard ──typed events──> App loop ──AppState──> terminal UI
                             └──Storage settings
 ```
 
-`internal/app` owns mutable state and chooses side effects. Adapters do not edit it. The composition root is `cmd/player/main.go`. See [architecture](docs/architecture.md), [development](docs/development.md), [testing](docs/testing.md), and [contributing](CONTRIBUTING.md).
+`internal/app` owns mutable state and chooses side effects. Adapters do not edit it. The composition root is `cmd/player/main.go`. See [architecture](docs/architecture.md), [development](docs/development.md), [testing](docs/testing.md), [diagnostic logging](docs/logging.md), and [contributing](CONTRIBUTING.md).
