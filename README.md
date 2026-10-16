@@ -98,6 +98,12 @@ emphasizes the speech range. Enabled presets reserve headroom to avoid overload,
 so their overall loudness can be lower than Off. No additional audio dependency
 is required.
 
+Diagnostics default to a separate JSON file at
+`$XDG_STATE_HOME/openipod/player.log` (or
+`$HOME/.local/state/openipod/player.log`). Use `--log-level=debug` for more
+detail, and `--log-file` to choose a development file. Linux journal setup,
+retention and viewing commands are in [diagnostic logging](docs/logging.md).
+
 ## Display previews
 
 Run the existing 240×320 renderer in an interactive desktop window:
@@ -181,4 +187,4 @@ keyboard ──typed events──> App loop ──AppState──> terminal UI
                             └──Storage settings
 ```
 
-`internal/app` owns mutable state and chooses side effects. Adapters do not edit it. The composition root is `cmd/player/main.go`. See [architecture](docs/architecture.md), [development](docs/development.md), [testing](docs/testing.md), and [contributing](CONTRIBUTING.md).
+`internal/app` owns mutable state and chooses side effects. Adapters do not edit it. The composition root is `cmd/player/main.go`. See [architecture](docs/architecture.md), [development](docs/development.md), [testing](docs/testing.md), [diagnostic logging](docs/logging.md), and [contributing](CONTRIBUTING.md).

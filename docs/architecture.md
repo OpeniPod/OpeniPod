@@ -72,9 +72,15 @@ interfaces. The Settings screen exposes `Update Library` and `Equalizer` as
 selectable items. Selecting `Update Library` invokes `Library.Refresh` as a synchronous one-off
 operation. The app waits for it to finish and replaces its track list only
 after success. A load or refresh failure becomes visible in state; a refresh
-failure preserves the existing in-memory list and saved index. Command and
-rendering failures return with context to `main`, where `slog` reports them
-once.
+failure preserves the existing in-memory list and saved index. App logs
+recoverable error events and reports fatal failures once at the Run boundary,
+with component and operation context. Main preserves the failing exit status
+without logging the same error again.
+
+`internal/logging` configures JSON file output or priority-prefixed journal
+streams. `cmd/player` passes its `slog.Logger` through `app.WithLogger`; App
+does not know about Linux journal configuration or files. Logging performs no
+state mutations, and the reducer remains pure. See [logging](logging.md).
 
 Selecting `Equalizer` cycles the fixed Off, Bass boost, and Vocal presets in the
 reducer. App sends the selected preset through `Player.SetEqualizer` and the
