@@ -46,13 +46,21 @@ func run(args []string, in *os.File, out io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("create audio player: %w", err)
 	}
+	defer audioPlayer.Close()
+
+	var musicLibrary app.Library = library.NewFake()
+
+	if *musicDir != "" {
+		musicLibrary = library.NewFilesystem(*musicDir)
+	}
 
 	application := app.New(
 		audioPlayer,
-		library.NewFake(),
+		musicLibrary,
 		storage.NewMemory(50),
 		input.NewKeyboard(in),
 		ui.NewTerminal(out),
 	)
+	
 	return application.Run(ctx)
 }
