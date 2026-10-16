@@ -35,3 +35,15 @@ UI with piped input.
 Audio decoding is outside these tests.
 
 The terminal interaction can be smoke-tested with `go run ./cmd/player` and a keyboard, or by piping key bytes. Hardware tests and real audio integration tests will be added only when those implementations exist.
+
+Diagnostic tests cover lifecycle/playback records, recovery and fatal failures,
+absence of error duplication, readable text formatting, escaping control
+characters, filtering, concurrent journal priorities and UI
+separation. Integration checks also cover filesystem-library startup and
+recovery through Update Library, plus successful, failed and cancelled
+refresh diagnostics without duplicate records. Write-failure tests cover short
+writes, retained write/close errors, and simultaneous application/log failures
+without suppressing the stderr fallback. On Linux with a running
+journald, build the player and run
+`bash scripts/check-journal.sh ./player` for real journal collection and query
+checks. See [logging](logging.md) for prerequisites and storage configuration.
