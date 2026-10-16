@@ -39,9 +39,10 @@ type Player struct {
 	ctrl     *beep.Ctrl
 	volume   *effects.Volume
 
-	track       music.Track
-	volumeLevel int
-	playbackID  uint64
+	track        music.Track
+	volumeLevel  int
+	playbackID   uint64
+	playbackStop chan struct{}
 }
 
 func NewPlayer() (*Player, error) {
@@ -68,7 +69,9 @@ func (p *Player) Play(ctx context.Context, track music.Track) error {
 
 	file, err := os.Open(track.Path)
 	if err != nil {
-		return p.reportPlaybackError(ctx, fmt.Errorf("open track %q: %w", track.Path, err))
+		stopErr := p.stopCurrentPlayback()
+
+		return p.reportPlaybackError(ctx, fmt.Errorf("open track %q: %w", track.Path, stopErr))
 	}
 
 	streamer, format, err := mp3.Decode(file)
@@ -91,9 +94,13 @@ func (p *Player) Play(ctx context.Context, track music.Track) error {
 		return errors.Join(err, streamer.Close())
 	}
 
-	speaker.Clear()
 	p.playbackID++
 	playbackID := p.playbackID
+	if p.playbackStop != nil {
+		close(p.playbackStop)
+		p.playbackStop = nil
+	}
+	speaker.Clear()
 	if p.streamer != nil {
 		if err := p.streamer.Close(); err != nil {
 			p.streamer = nil
@@ -140,6 +147,8 @@ func (p *Player) Play(ctx context.Context, track music.Track) error {
 	p.queueEvent(app.PlaybackStarted{Track: track})
 
 	completed := make(chan struct{})
+	playbackStop := make(chan struct{})
+	p.playbackStop = playbackStop
 	p.callbackWG.Add(1)
 	go func() {
 		defer p.callbackWG.Done()
@@ -149,6 +158,8 @@ func (p *Player) Play(ctx context.Context, track music.Track) error {
 			select {
 			case <-completed:
 				p.finishPlayback(playbackID, streamer)
+				return
+			case <-playbackStop:
 				return
 			case <-ticker.C:
 				p.reportPosition(playbackID, streamer, format.SampleRate)
@@ -161,6 +172,37 @@ func (p *Player) Play(ctx context.Context, track music.Track) error {
 		close(completed)
 	})))
 	p.mu.Unlock()
+	return nil
+}
+
+func (p *Player) stopCurrentPlayback() error {
+	p.mu.Lock()
+
+	if p.closed {
+		p.mu.Unlock()
+		return ErrClosed
+	}
+
+	p.playbackID++
+
+	if p.playbackStop != nil {
+		close(p.playbackStop)
+		p.playbackStop = nil
+	}
+
+	streamer := p.streamer
+	p.streamer = nil
+	p.ctrl = nil
+	p.volume = nil
+	p.track = music.Track{}
+
+	speaker.Clear()
+	p.mu.Unlock()
+
+	if streamer != nil {
+		return streamer.Close()
+	}
+
 	return nil
 }
 
@@ -200,6 +242,10 @@ func (p *Player) Close() error {
 	p.ctrl = nil
 	p.volume = nil
 	p.track = music.Track{}
+	if p.playbackStop != nil {
+		close(p.playbackStop)
+	}
+	p.playbackStop = nil
 	speaker.Clear()
 	p.mu.Unlock()
 
@@ -323,12 +369,23 @@ func (p *Player) finishPlayback(playbackID uint64, streamer beep.StreamSeekClose
 	p.ctrl = nil
 	p.volume = nil
 	p.track = music.Track{}
+	p.playbackStop = nil
 	p.mu.Unlock()
 
-	var event app.Event = app.TrackFinished{}
-	if err := errors.Join(streamer.Err(), streamer.Close()); err != nil {
-		event = app.PlaybackError{Err: fmt.Errorf("complete track: %w", err)}
+	closeErr := errors.Join(streamer.Err(), streamer.Close())
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.closed || p.playbackID != playbackID {
+		return
 	}
+
+	var event app.Event = app.TrackFinished{}
+	if closeErr != nil {
+		event = app.PlaybackError{Err: fmt.Errorf("complete track: %w", closeErr)}
+	}
+
 	p.queueEvent(event)
 }
 
