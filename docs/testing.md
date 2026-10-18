@@ -1,6 +1,20 @@
 # Testing guide
 
-Run `go test ./...` for normal tests, `go test -race ./...` when touching concurrency, and `make check` before a PR. `make check` also checks formatting and runs `go vet ./...`.
+Run `go test ./...` for normal tests and `go test -race ./...` when touching
+concurrency. Before a PR, run `make check`; it checks formatting, runs both test
+commands, and runs `go vet ./...`.
+
+## CI
+
+GitHub Actions runs on every push to a branch or tag and when a pull request is
+opened, reopened, or updated with new commits. It selects the Go version from
+`go.mod`, runs `make check` to verify formatting, run tests with and without the
+race detector, and run `go vet ./...`, then builds all packages with
+`go build ./...`. Results appear in the pull request's Checks tab; step details
+and logs are available in the Actions run. Run the same checks and build locally
+with `make all`.
+
+## Test coverage
 
 Reducer unit tests cover navigation bounds, volume bounds and commands, library loading, playback events, and Back. The reducer does no I/O, so these tests use plain values. The application integration test feeds typed input events into a real App with FakeLibrary, FakePlayer, MemoryStorage, and a small observing UI. It checks that selecting a track reaches FakePlayer and returns as a rendered playing state.
 

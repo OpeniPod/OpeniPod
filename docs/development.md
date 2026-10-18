@@ -10,11 +10,15 @@ Useful commands:
 
 ```sh
 make run      # desktop prototype
-make fmt      # format Go files
+make fmt      # rewrite Go files with gofmt
 make test     # unit and integration tests
 make race     # race detector
 make vet      # static checks
-make check    # formatting, tests, race detector, vet
+make check    # formatting check, tests, race detector, vet
+make all      # make check followed by a build of all packages
 ```
+
+If `make check` finds unformatted files, it prints their names and suggests
+running `make fmt` to format them.
 
 Read [architecture](architecture.md) before changing package boundaries, state ownership, or event flow. Keep a branch and PR focused; see [contributing](../CONTRIBUTING.md).
