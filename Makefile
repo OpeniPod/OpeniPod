@@ -1,4 +1,4 @@
-.PHONY: run test race vet fmt check
+.PHONY: all run test race vet fmt check
 
 run:
 	go run ./cmd/player
@@ -13,10 +13,17 @@ vet:
 	go vet ./...
 
 fmt:
-	gofmt -w $$(find cmd internal -name '*.go')
+	gofmt -w cmd internal
+
+all: check
+	go build ./...
 
 check:
-	test -z "$$(gofmt -l $$(find cmd internal -name '*.go'))"
+	@unformatted=$$(gofmt -l cmd internal) || exit $$?; \
+	if [ -n "$$unformatted" ]; then \
+		printf '%s\n' 'Go files need formatting:' "$$unformatted" "Run 'make fmt' to format them." >&2; \
+		exit 1; \
+	fi
 	go test ./...
 	go test -race ./...
 	go vet ./...
