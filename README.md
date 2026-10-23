@@ -61,6 +61,18 @@ Use `--settings-file /path/to/settings.json` to choose another location.
 A missing file starts with default settings (volume 50%); an invalid file causes
 a startup error. Parent directories are created on the first save.
 
+## Display previews
+
+The 240×320 display renderer uses an embedded font and can be tested without
+hardware. Generate PNG examples for each screen, an empty library, and error
+states with:
+
+```sh
+make screenshots
+```
+
+The images are written to `examples/screens/`.
+
 ## Controls
 
 | Key | Action |

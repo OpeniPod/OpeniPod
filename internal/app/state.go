@@ -25,8 +25,9 @@ const (
 )
 
 type NavigationState struct {
-	HomeIndex  int
-	TrackIndex int
+	HomeIndex     int
+	TrackIndex    int
+	SettingsIndex int
 }
 
 type PlayerState struct {

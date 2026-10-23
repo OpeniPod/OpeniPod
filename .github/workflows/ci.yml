@@ -16,6 +16,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Install audio build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libasound2-dev pkg-config
+
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
