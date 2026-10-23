@@ -3,6 +3,7 @@ package library
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -296,6 +297,77 @@ func TestFilesystemLoadRejectsInvalidIndexWithoutRescan(t *testing.T) {
 			}
 			if !bytes.Equal(after, before) {
 				t.Fatalf("invalid index was changed: before=%q after=%q", before, after)
+			}
+		})
+	}
+}
+
+func TestFilesystemLoadValidatesCachedTrackIDs(t *testing.T) {
+	tests := []struct {
+		name      string
+		mutate    func([]music.Track)
+		wantError string
+	}{
+		{name: "valid index"},
+		{
+			name: "duplicate IDs",
+			mutate: func(tracks []music.Track) {
+				tracks[1].ID = tracks[0].ID
+			},
+			wantError: "track 1 has duplicate ID",
+		},
+		{
+			name: "ID does not match path",
+			mutate: func(tracks []music.Track) {
+				tracks[1].ID = music.TrackID(fmt.Sprintf("%x", sha256.Sum256([]byte(tracks[1].Path+".other"))))
+			},
+			wantError: "track 1 ID does not match path",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeTestFile(t, root, "a.mp3")
+			writeTestFile(t, root, "b.mp3")
+			original, err := NewFilesystem(root).Load(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(original) != 2 {
+				t.Fatalf("initial load = %+v, want two tracks", original)
+			}
+			for _, track := range original {
+				wantID := music.TrackID(fmt.Sprintf("%x", sha256.Sum256([]byte(track.Path))))
+				if track.ID != wantID {
+					t.Fatalf("track %q ID = %q, want SHA-256 %q", track.Path, track.ID, wantID)
+				}
+			}
+			if test.mutate != nil {
+				test.mutate(original)
+			}
+			data, err := json.Marshal(libraryIndex{Version: libraryIndexVersion, Root: root, Tracks: original})
+			if err != nil {
+				t.Fatal(err)
+			}
+			indexPath := filepath.Join(root, ".openipod-library.json")
+			if err := os.WriteFile(indexPath, data, 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			tracks, err := NewFilesystem(root).Load(context.Background())
+			if test.wantError != "" {
+				if tracks != nil || err == nil || !strings.Contains(err.Error(), "decode library index: "+test.wantError) {
+					t.Fatalf("load = tracks=%#v err=%v, want nil tracks and %q", tracks, err, test.wantError)
+				}
+			} else if err != nil || !reflect.DeepEqual(tracks, original) {
+				t.Fatalf("cached load = tracks=%#v err=%v, want original tracks with stable IDs %+v", tracks, err, original)
+			}
+			after, err := os.ReadFile(indexPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(after, data) {
+				t.Fatalf("load changed index: before=%q after=%q", data, after)
 			}
 		})
 	}

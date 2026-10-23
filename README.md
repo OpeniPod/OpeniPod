@@ -1,12 +1,22 @@
 # OpeniPod
 
-OpeniPod is a team learning project for a standalone music player inspired by the iPod. The intended device uses an Orange Pi Zero, a small display, physical controls, local music, and Linux. This repository currently contains an **initial architecture prototype**, not a finished player.
+OpeniPod is a team learning project for a standalone music player inspired by the iPod. The intended device uses an Orange Pi Zero, a small display, physical controls, local music, and Linux. The desktop app has a working audio player; hardware support is not yet implemented.
 
 The runnable desktop slice has a terminal UI, keyboard input, a filesystem or sample music library, a fake player that emits playback events without sound, and file-backed volume settings. It demonstrates the application flow while the hardware and real audio work remain separate.
 
 ## Build and run
 
-Go 1.23 or newer is required. On Linux:
+Go 1.23 or newer is required. On Linux, building requires a C compiler, `pkg-config`, and ALSA development headers. Install the dependencies for your distribution:
+
+```sh
+# Debian or Ubuntu
+sudo apt install build-essential pkg-config libasound2-dev
+
+# Fedora
+sudo dnf install gcc pkgconf-pkg-config alsa-lib-devel
+```
+
+Then build or run:
 
 ```sh
 go build ./cmd/player
@@ -33,14 +43,14 @@ again. The update performs one synchronous scan and atomically replaces the
 index; it is cancelled by Ctrl+C.
 There is no background scan or filesystem watcher.
 
-The library includes regular files with `.mp3`, `.flac`, `.wav`, `.ogg`, `.m4a`,
-and `.aac` extensions, ignoring case. Titles are filenames including extensions;
-tags and duration are not read. Files are sorted lexicographically by path
-within the directory. Each track has an absolute, cleaned path and a stable
-ID derived from that path. Renaming or moving a file changes its ID. Symbolic
-links inside the directory are skipped. The music root must be writable for
-the first scan and manual updates; cached startup loads only need a readable
-index.
+The library indexes regular files with `.mp3`, `.flac`, `.wav`, `.ogg`, `.m4a`,
+and `.aac` extensions, ignoring case; only MP3 files can currently be played.
+Titles are filenames including extensions; tags and duration are not read.
+Files are sorted lexicographically by path within the directory. Each track
+has an absolute, cleaned path and a stable ID derived from that path. Renaming
+or moving a file changes its ID. Symbolic links inside the directory are
+skipped. The music root must be writable for the first scan and manual
+updates; cached startup loads only need a readable index.
 
 An empty directory or one containing only unsupported files gives an empty
 track list. A missing directory, a file supplied as the directory, or a read
@@ -50,8 +60,7 @@ application does not silently rescan it. Choose Update Library to recover.
 Refresh failures retain the current in-memory track list and saved index.
 
 Without `--music-dir` (or with an empty value), the four sample tracks remain
-available for development. File selection is based on extensions; audio
-contents are not validated or decoded.
+available for development.
 
 Settings are restored on startup and saved 500 ms after the last change.
 Pending changes are saved before shutdown. On Linux the default
