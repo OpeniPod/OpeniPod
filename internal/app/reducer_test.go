@@ -163,9 +163,10 @@ func TestLibraryFailureIsVisible(t *testing.T) {
 
 func TestSelectingUpdateLibraryRequestsRefresh(t *testing.T) {
 	state := AppState{
-		Screen:  ScreenSettings,
-		Library: LibraryState{Tracks: []music.Track{{ID: "old"}}},
-		Error:   "previous failure",
+		Screen:     ScreenSettings,
+		Navigation: NavigationState{SettingsIndex: 0},
+		Library:    LibraryState{Tracks: []music.Track{{ID: "old"}}},
+		Error:      "previous failure",
 	}
 	got, commands := Reduce(state, SelectPressed{})
 	if got.Error != "" || got.Screen != ScreenSettings || len(got.Library.Tracks) != 1 {
@@ -176,6 +177,16 @@ func TestSelectingUpdateLibraryRequestsRefresh(t *testing.T) {
 	}
 	if _, ok := commands[0].(refreshLibrary); !ok {
 		t.Fatalf("command = %#v, want library refresh", commands[0])
+	}
+}
+
+func TestSettingsNavigationKeepsUpdateLibrarySelected(t *testing.T) {
+	state := AppState{Screen: ScreenSettings}
+	for _, delta := range []int{-1, 1, 5} {
+		state, _ = Reduce(state, Scroll{Delta: delta})
+		if state.Navigation.SettingsIndex != 0 {
+			t.Fatalf("settings index after scroll %d = %d, want 0", delta, state.Navigation.SettingsIndex)
+		}
 	}
 }
 
