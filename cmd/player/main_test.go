@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/OpeniPod/OpeniPod/internal/app"
+	"github.com/OpeniPod/OpeniPod/internal/player"
 )
 
 func TestRunSelectsLibrary(t *testing.T) {
@@ -141,7 +144,9 @@ func runWithInput(t *testing.T, args []string, keys string) string {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	if err := run(args, in, &out); err != nil {
+	if err := runWithPlayerFactory(args, in, &out, func() (app.Player, error) {
+		return player.NewFake(), nil
+	}); err != nil {
 		t.Fatal(err)
 	}
 	return out.String()

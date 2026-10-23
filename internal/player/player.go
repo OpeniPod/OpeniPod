@@ -22,6 +22,11 @@ const positionInterval = 250 * time.Millisecond
 
 var ErrClosed = errors.New("player is closed")
 
+var (
+	speakerInit    sync.Once
+	speakerInitErr error
+)
+
 type Player struct {
 	mu         sync.Mutex
 	events     chan app.Event
@@ -46,8 +51,11 @@ type Player struct {
 }
 
 func NewPlayer() (*Player, error) {
-	if err := speaker.Init(sampleRate, sampleRate.N(time.Second/10)); err != nil {
-		return nil, fmt.Errorf("initialize audio speaker: %w", err)
+	speakerInit.Do(func() {
+		speakerInitErr = speaker.Init(sampleRate, sampleRate.N(time.Second/10))
+	})
+	if speakerInitErr != nil {
+		return nil, fmt.Errorf("initialize audio speaker: %w", speakerInitErr)
 	}
 
 	p := &Player{
@@ -71,12 +79,22 @@ func (p *Player) Play(ctx context.Context, track music.Track) error {
 	if err != nil {
 		stopErr := p.stopCurrentPlayback()
 
-		return p.reportPlaybackError(ctx, fmt.Errorf("open track %q: %w", track.Path, stopErr))
+		openErr := fmt.Errorf("open track %q: %w", track.Path, err)
+		if stopErr != nil {
+			openErr = errors.Join(openErr, fmt.Errorf("stop current playback: %w", stopErr))
+		}
+		return p.reportPlaybackError(ctx, openErr)
 	}
 
 	streamer, format, err := mp3.Decode(file)
 	if err != nil {
-		decodeErr := errors.Join(fmt.Errorf("decode track %q: %w", track.Path, err), file.Close())
+		decodeErr := fmt.Errorf("decode track %q: %w", track.Path, err)
+		if closeErr := file.Close(); closeErr != nil {
+			decodeErr = errors.Join(decodeErr, fmt.Errorf("close track file: %w", closeErr))
+		}
+		if stopErr := p.stopCurrentPlayback(); stopErr != nil {
+			decodeErr = errors.Join(decodeErr, fmt.Errorf("stop current playback: %w", stopErr))
+		}
 		return p.reportPlaybackError(ctx, decodeErr)
 	}
 
@@ -249,7 +267,6 @@ func (p *Player) Close() error {
 	speaker.Clear()
 	p.mu.Unlock()
 
-	speaker.Close()
 	var closeErr error
 	if streamer != nil {
 		closeErr = streamer.Close()

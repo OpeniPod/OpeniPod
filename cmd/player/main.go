@@ -28,6 +28,12 @@ func main() {
 }
 
 func run(args []string, in *os.File, out io.Writer) error {
+	return runWithPlayerFactory(args, in, out, func() (app.Player, error) {
+		return player.NewPlayer()
+	})
+}
+
+func runWithPlayerFactory(args []string, in *os.File, out io.Writer, newPlayer func() (app.Player, error)) error {
 	flags := flag.NewFlagSet("player", flag.ContinueOnError)
 	platform := flags.String("platform", "desktop", "platform backend (desktop)")
 	musicDir := flags.String("music-dir", "", "music directory with a saved library index (empty: sample library)")
@@ -51,12 +57,11 @@ func run(args []string, in *os.File, out io.Writer) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	
-	audioPlayer, err := player.NewPlayer()
+
+	audioPlayer, err := newPlayer()
 	if err != nil {
 		return fmt.Errorf("create audio player: %w", err)
 	}
-	defer audioPlayer.Close()
 
 	var musicLibrary app.Library = library.NewFake()
 
@@ -71,6 +76,6 @@ func run(args []string, in *os.File, out io.Writer) error {
 		input.NewKeyboard(in),
 		ui.NewTerminal(out),
 	)
-	
+
 	return application.Run(ctx)
 }

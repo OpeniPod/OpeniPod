@@ -98,7 +98,7 @@ func (a *App) Run(ctx context.Context) (result error) {
 		// The run context may already be cancelled when shutdown starts.
 		flushCtx, flushCancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
 		defer flushCancel()
-		result = errors.Join(result, a.flushSettings(flushCtx))
+		runErr = errors.Join(runErr, a.flushSettings(flushCtx))
 	}()
 	if err := a.player.SetVolume(runCtx, a.state.Settings.Volume); err != nil {
 		if runCtx.Err() != nil {
