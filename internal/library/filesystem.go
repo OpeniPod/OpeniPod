@@ -161,6 +161,7 @@ func decodeIndex(data []byte, absoluteRoot string) ([]music.Track, error) {
 	if index.Tracks == nil {
 		return nil, fmt.Errorf("decode library index: tracks must be an array")
 	}
+	seenIDs := make(map[music.TrackID]struct{}, len(index.Tracks))
 	for i, track := range index.Tracks {
 		if track.ID == "" || track.Path == "" || track.Title == "" {
 			return nil, fmt.Errorf("decode library index: track %d is missing ID, path, or title", i)
@@ -172,6 +173,14 @@ func decodeIndex(data []byte, absoluteRoot string) ([]music.Track, error) {
 		if i > 0 && index.Tracks[i-1].Path >= track.Path {
 			return nil, fmt.Errorf("decode library index: track paths must be unique and sorted")
 		}
+		if _, exists := seenIDs[track.ID]; exists {
+			return nil, fmt.Errorf("decode library index: track %d has duplicate ID %q", i, track.ID)
+		}
+		expectedID := music.TrackID(fmt.Sprintf("%x", sha256.Sum256([]byte(track.Path))))
+		if track.ID != expectedID {
+			return nil, fmt.Errorf("decode library index: track %d ID does not match path %q", i, track.Path)
+		}
+		seenIDs[track.ID] = struct{}{}
 	}
 	return index.Tracks, nil
 }
