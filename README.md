@@ -94,6 +94,18 @@ emphasizes the speech range. Enabled presets reserve headroom to avoid overload,
 so their overall loudness can be lower than Off. No additional audio dependency
 is required.
 
+## Display previews
+
+The 240×320 display renderer uses an embedded font and can be tested without
+hardware. Generate PNG examples for each screen, an empty library, and error
+states with:
+
+```sh
+make screenshots
+```
+
+The images are written to `examples/screens/`.
+
 ## Controls
 
 Software processing of EC11 rotation and encoder, Back, and Play/Pause buttons
