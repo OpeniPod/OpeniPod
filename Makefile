@@ -1,7 +1,10 @@
-.PHONY: all run test race vet fmt check
+.PHONY: all run screenshots test race vet fmt check
 
 run:
 	go run ./cmd/player
+
+screenshots:
+	go run ./cmd/render-samples
 
 test:
 	go test ./...

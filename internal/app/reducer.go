@@ -2,6 +2,8 @@ package app
 
 import "github.com/OpeniPod/OpeniPod/internal/music"
 
+const settingsMenuItemCount = 2
+
 type command interface{ isCommand() }
 
 type playTrack struct{ track music.Track }
@@ -30,7 +32,7 @@ func Reduce(state AppState, event Event) (AppState, []command) {
 		case ScreenTracks:
 			state.Navigation.TrackIndex = clamp(state.Navigation.TrackIndex+e.Delta, 0, max(0, len(state.Library.Tracks)-1))
 		case ScreenSettings:
-			state.Navigation.SettingsIndex = clamp(state.Navigation.SettingsIndex+e.Delta, 0, 1)
+			state.Navigation.SettingsIndex = clamp(state.Navigation.SettingsIndex+e.Delta, 0, settingsMenuItemCount-1)
 		}
 	case SelectPressed:
 		switch state.Screen {

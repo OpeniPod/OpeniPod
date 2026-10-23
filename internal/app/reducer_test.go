@@ -168,9 +168,10 @@ func TestLibraryFailureIsVisible(t *testing.T) {
 
 func TestSelectingUpdateLibraryRequestsRefresh(t *testing.T) {
 	state := AppState{
-		Screen:  ScreenSettings,
-		Library: LibraryState{Tracks: []music.Track{{ID: "old"}}},
-		Error:   "previous failure",
+		Screen:     ScreenSettings,
+		Navigation: NavigationState{SettingsIndex: 0},
+		Library:    LibraryState{Tracks: []music.Track{{ID: "old"}}},
+		Error:      "previous failure",
 	}
 	got, commands := Reduce(state, SelectPressed{})
 	if got.Error != "" || got.Screen != ScreenSettings || len(got.Library.Tracks) != 1 {
@@ -181,6 +182,28 @@ func TestSelectingUpdateLibraryRequestsRefresh(t *testing.T) {
 	}
 	if _, ok := commands[0].(refreshLibrary); !ok {
 		t.Fatalf("command = %#v, want library refresh", commands[0])
+	}
+}
+
+func TestSettingsNavigationSelectsAndCyclesEqualizer(t *testing.T) {
+	state := AppState{Screen: ScreenSettings}
+	state, _ = Reduce(state, Scroll{Delta: 1})
+	if state.Navigation.SettingsIndex != 1 {
+		t.Fatalf("settings index = %d, want equalizer at 1", state.Navigation.SettingsIndex)
+	}
+	state, commands := Reduce(state, SelectPressed{})
+	if state.Settings.Equalizer != EqualizerBassBoost {
+		t.Fatalf("selected equalizer = %q, want Bass boost", state.Settings.Equalizer)
+	}
+	if len(commands) != 2 {
+		t.Fatalf("commands = %#v, want set equalizer and save settings", commands)
+	}
+	if _, ok := commands[0].(setEqualizer); !ok {
+		t.Fatalf("first command = %#v, want set equalizer", commands[0])
+	}
+	state, _ = Reduce(state, Scroll{Delta: -1})
+	if state.Navigation.SettingsIndex != 0 {
+		t.Fatalf("settings index after moving back = %d, want Update Library at 0", state.Navigation.SettingsIndex)
 	}
 }
 

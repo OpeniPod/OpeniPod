@@ -26,8 +26,11 @@ interfaces; `cmd/player` supplies their concrete implementations.
 
 `music` has the small `Track` type. `app` defines events, `AppState`, the reducer,
 and consumer-side interfaces. `input` converts keys and control signals into
-events. `ui` renders a state snapshot. `library` supplies filesystem and fake adapters; `player`
-supplies the fake player; `storage` supplies file and memory adapters.
+events. `ui` renders a state snapshot to the terminal or to a 240×320 RGBA
+image. The image renderer uses an embedded font and can be exercised through
+PNG examples without a physical display. `library` supplies filesystem and
+fake adapters; `player` supplies the fake player; `storage` supplies file and
+memory adapters.
 `cmd/player` wires them together. The application core imports no terminal,
 audio, or board-specific package.
 
@@ -149,4 +152,9 @@ and owns no goroutines or application state. See [control signals](controls.md)
 for the signal contract, assumptions, and future GPIO integration.
 
 An Orange Pi input adapter can later feed real GPIO signals into that processor.
-A display adapter can render the same `AppState` snapshot instead of the terminal UI. A real player adapter can implement the small Player interface and report playback events. These adapters should live outside `internal/app`; their composition belongs in a platform-specific entry point or wiring code. This prototype makes no claims about device drivers, audio decoding, or deployment yet.
+The current image renderer is hardware-independent; a future display adapter
+can transfer its RGBA output to a physical display. A real player adapter can
+implement the small Player interface and report playback events. These adapters
+should live outside `internal/app`; their composition belongs in a
+platform-specific entry point or wiring code. This prototype makes no claims
+about device drivers, audio decoding, or deployment yet.
