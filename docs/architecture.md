@@ -52,9 +52,16 @@ interfaces. The Settings screen exposes `Update Library` as its only selectable
 item; selecting it invokes `Library.Refresh` as a synchronous one-off
 operation. The app waits for it to finish and replaces its track list only
 after success. A load or refresh failure becomes visible in state; a refresh
-failure preserves the existing in-memory list and saved index. Command and
-rendering failures return with context to `main`, where `slog` reports them
-once.
+failure preserves the existing in-memory list and saved index. App logs
+recoverable error events and reports fatal failures once at the Run boundary,
+with component and operation context. Main preserves the failing exit status
+without logging the same error again, unless writing diagnostics failed. In that
+case stderr receives both the application error and the logging failure.
+
+`internal/logging` configures readable text file output or priority-prefixed journal
+streams. `cmd/player` passes its `slog.Logger` through `app.WithLogger`; App
+does not know about Linux journal configuration or files. Logging performs no
+state mutations, and the reducer remains pure. See [logging](logging.md).
 
 Home and track-list movement **clamps** at the first and last item. Next and previous track commands wrap around the loaded library. Volume clamps to 0..100. Back returns to Home. These choices keep the initial navigation small and predictable.
 

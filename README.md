@@ -61,6 +61,12 @@ Use `--settings-file /path/to/settings.json` to choose another location.
 A missing file starts with default settings (volume 50%); an invalid file causes
 a startup error. Parent directories are created on the first save.
 
+Diagnostics default to a separate text file at
+`$XDG_STATE_HOME/openipod/player.log` (or
+`$HOME/.local/state/openipod/player.log`). Use `--log-level=debug` for more
+detail, and `--log-file` to choose a development file. Linux journal setup,
+retention and viewing commands are in [diagnostic logging](docs/logging.md).
+
 ## Controls
 
 | Key | Action |
@@ -102,4 +108,4 @@ keyboard ──typed events──> App loop ──AppState──> terminal UI
                             └──Storage settings
 ```
 
-`internal/app` owns mutable state and chooses side effects. Adapters do not edit it. The composition root is `cmd/player/main.go`. See [architecture](docs/architecture.md), [development](docs/development.md), [testing](docs/testing.md), and [contributing](CONTRIBUTING.md).
+`internal/app` owns mutable state and chooses side effects. Adapters do not edit it. The composition root is `cmd/player/main.go`. See [architecture](docs/architecture.md), [development](docs/development.md), [testing](docs/testing.md), [diagnostic logging](docs/logging.md), and [contributing](CONTRIBUTING.md).
