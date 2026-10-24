@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -204,6 +205,16 @@ func load(ctx context.Context, absoluteRoot string, files fs.FS) ([]music.Track,
 		}
 
 		absolutePath := filepath.Join(absoluteRoot, name)
+		if err := checkAudio(ctx, files, name); err != nil {
+			if contextErr := ctx.Err(); contextErr != nil {
+				return contextErr
+			}
+			if !errors.Is(err, errUnrecognizedAudio) {
+				return fmt.Errorf("inspect %s: %w", absolutePath, err)
+			}
+			slog.WarnContext(ctx, "skipping unrecognized audio file", "path", absolutePath, "reason", err)
+			return nil
+		}
 		tracks = append(tracks, music.Track{
 			ID:    music.TrackID(fmt.Sprintf("%x", sha256.Sum256([]byte(absolutePath)))),
 			Path:  absolutePath,

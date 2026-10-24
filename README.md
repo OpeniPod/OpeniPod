@@ -50,8 +50,17 @@ application does not silently rescan it. Choose Update Library to recover.
 Refresh failures retain the current in-memory track list and saved index.
 
 Without `--music-dir` (or with an empty value), the four sample tracks remain
-available for development. File selection is based on extensions; audio
-contents are not validated or decoded.
+available for development. During scans, extensions only select candidates;
+the contents must also be recognized as supported audio: MP3 (MPEG Layer III),
+native FLAC, RIFF/WAVE, Ogg (Vorbis, Opus, or FLAC), M4A/MP4 with an audio track,
+or AAC with ADTS framing. MP3 and AAC require two consecutive audio frames;
+the other recognizers check mandatory format headers. MP4 parsing uses
+`github.com/abema/go-mp4`, and MP3 uses `github.com/tcolgate/mp3`.
+Unrecognized files (including text renamed to an audio extension and video-only
+MP4 renamed to `.m4a`) are skipped with a warning containing the path and reason.
+Missing song tags do not prevent recognition. This recognizes the format
+without decoding or checking the entire file for damage. Existing index
+entries are checked only after Update Library.
 
 ## Controls
 

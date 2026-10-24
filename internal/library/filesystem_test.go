@@ -84,6 +84,138 @@ func TestFilesystemLoadDiscoversSupportedFiles(t *testing.T) {
 	}
 }
 
+func TestFilesystemLoadValidatesMP3ContentInMixedDirectory(t *testing.T) {
+	root := t.TempDir()
+	writeTestBytes(t, root, "text-renamed.mp3", []byte("this is not an audio file"))
+	writeTestBytes(t, root, "tags-only.mp3", []byte{
+		'I', 'D', '3', 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	})
+	writeTestFile(t, root, "valid.mp3")
+	valid := readTestMP3(t)
+	damagedTags := append([]byte{
+		'I', 'D', '3', 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+	}, valid...)
+	writeTestBytes(t, root, "damaged-tags.mp3", damagedTags)
+	corruptedTail := append(append([]byte(nil), valid...), []byte("not an MP3 frame")...)
+	writeTestBytes(t, root, "corrupted-tail.mp3", corruptedTail)
+	writeTestFile(t, root, filepath.Join("nested", "other.flac"))
+
+	tracks, err := NewFilesystem(root).Load(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantTitles := []string{
+		"corrupted-tail.mp3",
+		"damaged-tags.mp3",
+		"other.flac",
+		"valid.mp3",
+	}
+	if got := trackTitles(tracks); !reflect.DeepEqual(got, wantTitles) {
+		t.Fatalf("tracks = %v, want %v", got, wantTitles)
+	}
+	for _, track := range tracks {
+		if track.Title == "valid.mp3" && (track.Artist != "" || track.Album != "" || track.TrackNum != 0 || track.Duration != 0) {
+			t.Fatalf("untagged MP3 has unexpected metadata: %+v", track)
+		}
+	}
+}
+
+func TestFilesystemLoadRejectsRenamedTextForEverySupportedFormat(t *testing.T) {
+	root := t.TempDir()
+	for _, extension := range supportedTestExtensions() {
+		writeTestFile(t, root, "valid"+extension)
+		writeTestBytes(t, root, "text"+extension, []byte("this is not an audio file"))
+	}
+
+	wantTitles := []string{
+		"valid.aac",
+		"valid.flac",
+		"valid.m4a",
+		"valid.mp3",
+		"valid.ogg",
+		"valid.wav",
+	}
+	lib := NewFilesystem(root)
+	first, err := lib.Load(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := trackTitles(first); !reflect.DeepEqual(got, wantTitles) {
+		t.Fatalf("first scan tracks = %v, want %v", got, wantTitles)
+	}
+
+	refreshed, err := lib.Refresh(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := trackTitles(refreshed); !reflect.DeepEqual(got, wantTitles) {
+		t.Fatalf("refresh tracks = %v, want %v", got, wantTitles)
+	}
+}
+
+func TestFilesystemLoadRejectsVideoOnlyM4A(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "valid.m4a")
+	writeTestBytes(t, root, "video-only.m4a", readFilesystemFixture(t, "video-only.mp4"))
+
+	lib := NewFilesystem(root)
+	tracks, err := lib.Load(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantTitles := []string{"valid.m4a"}
+	if got := trackTitles(tracks); !reflect.DeepEqual(got, wantTitles) {
+		t.Fatalf("first scan tracks = %v, want %v", got, wantTitles)
+	}
+
+	refreshed, err := lib.Refresh(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := trackTitles(refreshed); !reflect.DeepEqual(got, wantTitles) {
+		t.Fatalf("refresh tracks = %v, want %v", got, wantTitles)
+	}
+}
+
+func TestFilesystemLoadAcceptsOggOpus(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "valid.ogg")
+	writeTestBytes(t, root, "opus.ogg", readFilesystemFixture(t, "opus.ogg"))
+
+	tracks, err := NewFilesystem(root).Load(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantTitles := []string{"opus.ogg", "valid.ogg"}
+	if got := trackTitles(tracks); !reflect.DeepEqual(got, wantTitles) {
+		t.Fatalf("tracks = %v, want %v", got, wantTitles)
+	}
+}
+
+func TestFilesystemLoadCacheDoesNotRevalidateMP3UntilRefresh(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "track.mp3")
+	lib := NewFilesystem(root)
+	tracks, err := lib.Load(context.Background())
+	if err != nil || len(tracks) != 1 {
+		t.Fatalf("initial load = tracks=%+v err=%v, want one track", tracks, err)
+	}
+
+	writeTestBytes(t, root, "track.mp3", []byte("the cached MP3 is now damaged"))
+	cached, err := lib.Load(context.Background())
+	if err != nil || len(cached) != 1 || cached[0].Title != "track.mp3" {
+		t.Fatalf("cached load = tracks=%+v err=%v, want cached track", cached, err)
+	}
+
+	refreshed, err := lib.Refresh(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if refreshed == nil || len(refreshed) != 0 {
+		t.Fatalf("refresh = tracks=%+v, want a non-nil empty library", refreshed)
+	}
+}
+
 func TestFilesystemLoadUsesCacheAndRefreshReturnsFreshSlices(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, "b.mp3")
@@ -624,10 +756,64 @@ func TestFilesystemLoadUnreadableDirectory(t *testing.T) {
 
 func writeTestFile(t *testing.T, root, name string) {
 	t.Helper()
+	data := []byte("test audio placeholder")
+	if isSupportedTestExtension(filepath.Ext(name)) {
+		data = readTestFixture(t, strings.ToLower(filepath.Ext(name)))
+	}
+	writeTestBytes(t, root, name, data)
+}
+
+func writeTestBytes(t *testing.T, root, name string, data []byte) {
+	t.Helper()
 	path := filepath.Join(root, name)
-	if err := os.WriteFile(path, []byte("test audio placeholder"), 0o600); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func readTestMP3(t *testing.T) []byte {
+	return readTestFixture(t, ".mp3")
+}
+
+func readTestFixture(t *testing.T, extension string) []byte {
+	return readFilesystemFixture(t, "valid"+extension)
+}
+
+func readFilesystemFixture(t *testing.T, name string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("testdata", name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(data) == 0 {
+		t.Fatalf("testdata/%s is empty", name)
+	}
+	return data
+}
+
+func supportedTestExtensions() []string {
+	return []string{".mp3", ".flac", ".wav", ".ogg", ".m4a", ".aac"}
+}
+
+func isSupportedTestExtension(extension string) bool {
+	extension = strings.ToLower(extension)
+	for _, supported := range supportedTestExtensions() {
+		if extension == supported {
+			return true
+		}
+	}
+	return false
+}
+
+func trackTitles(tracks []music.Track) []string {
+	titles := make([]string, len(tracks))
+	for i, track := range tracks {
+		titles[i] = track.Title
+	}
+	return titles
 }
 
 // testFS overrides directory reads for deterministic error and cancellation tests.
