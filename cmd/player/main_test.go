@@ -17,9 +17,7 @@ func TestRunSelectsLibrary(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"01.flac", "Album/02.MP3", "Daft Punk - Get Lucky (feat. Pharrell Williams).mp3", "notes.txt"} {
-		if err := os.WriteFile(filepath.Join(root, name), []byte("fixture"), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		writePlayerTestFile(t, root, name)
 	}
 
 	for _, tc := range []struct {
@@ -77,9 +75,7 @@ func TestRunShowsLibraryError(t *testing.T) {
 func TestRunUsesSavedLibraryUntilMenuUpdate(t *testing.T) {
 	root := t.TempDir()
 	oldPath := filepath.Join(root, "old.mp3")
-	if err := os.WriteFile(oldPath, []byte("fixture"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	writePlayerTestFile(t, root, filepath.Base(oldPath))
 	args := []string{"--music-dir", root}
 	first := runWithInput(t, args, "\n")
 	if !strings.Contains(first, "> old.mp3\n") {
@@ -91,9 +87,7 @@ func TestRunUsesSavedLibraryUntilMenuUpdate(t *testing.T) {
 	if err := os.Remove(oldPath); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "new.flac"), []byte("fixture"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	writePlayerTestFile(t, root, "new.flac")
 	second := runWithInput(t, args, "\n")
 	if !strings.Contains(second, "> old.mp3\n") || strings.Contains(second, "new.flac") {
 		t.Fatalf("second run did not use the saved library:\n%s", second)
@@ -112,9 +106,7 @@ func TestRunUsesSavedLibraryUntilMenuUpdate(t *testing.T) {
 
 func TestRunMenuUpdateRecoversInvalidIndex(t *testing.T) {
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "track.mp3"), []byte("fixture"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	writePlayerTestFile(t, root, "track.mp3")
 	if err := os.WriteFile(filepath.Join(root, ".openipod-library.json"), []byte("invalid JSON"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -182,4 +174,32 @@ func runWithInput(t *testing.T, args []string, keys string) string {
 		t.Fatal(err)
 	}
 	return out.String()
+}
+func writePlayerTestFile(t *testing.T, root, name string) {
+	t.Helper()
+	data := []byte("fixture")
+	extension := strings.ToLower(filepath.Ext(name))
+	if isPlayerFixtureExtension(extension) {
+		var err error
+		data, err = os.ReadFile(filepath.Join("..", "..", "internal", "library", "testdata", "valid"+extension))
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	path := filepath.Join(root, name)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func isPlayerFixtureExtension(extension string) bool {
+	switch extension {
+	case ".mp3", ".flac", ".wav", ".ogg", ".m4a", ".aac":
+		return true
+	default:
+		return false
+	}
 }
