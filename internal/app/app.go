@@ -62,7 +62,7 @@ func New(player Player, library Library, storage Storage, input Input, ui Render
 }
 
 // Run owns all state mutations. Only input collection runs in a separate goroutine.
-func (a *App) Run(ctx context.Context) (result error) {
+func (a *App) Run(ctx context.Context) (runErr error) {
 	runCtx, cancel := context.WithCancel(ctx)
 	var inputWorker sync.WaitGroup
 	defer func() {
