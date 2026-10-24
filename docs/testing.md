@@ -32,7 +32,12 @@ and cancellation stops the app. Command tests exercise `--music-dir`, the
 sample default, empty libraries, load errors, cached startup, the Settings
 `Update Library` item, and recovery from an invalid index through the terminal
 UI with piped input.
-Audio decoding is outside these tests.
+Audio scan tests use small generated silence fixtures for all supported
+extensions and cover text renamed to each audio extension, audio with a
+different extension, MP3 tag-only files, damaged metadata, cached versus
+refreshed recognition, Ogg Opus, and video-only MP4 renamed to `.m4a`.
+Fixtures and generation commands are committed, so normal tests require no
+audio tools or hardware. Full audio decoding is outside these tests.
 
 Equalizer tests check the fixed presets' frequency response with synthetic
 tones, exact Off bypass, independent stereo channels, stream errors and partial

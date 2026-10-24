@@ -52,6 +52,18 @@ or moving a file changes its ID. Symbolic links inside the directory are
 skipped. The music root must be writable for the first scan and manual
 updates; cached startup loads only need a readable index.
 
+During scans, extensions only select candidates; the contents must also be
+recognized as supported audio: MP3 (MPEG Layer III), native FLAC, RIFF/WAVE,
+Ogg (Vorbis, Opus, or FLAC), M4A/MP4 with an audio track, or AAC with ADTS
+framing. MP3 and AAC require two consecutive audio frames; the other
+recognizers check mandatory format headers. MP4 parsing uses
+`github.com/abema/go-mp4`, and MP3 uses `github.com/tcolgate/mp3`.
+Unrecognized files (including text renamed to an audio extension and video-only
+MP4 renamed to `.m4a`) are skipped with a warning containing the path and
+reason. Missing song tags do not prevent recognition. This recognizes the
+format without decoding or checking the entire file for damage. Existing index
+entries are checked only after Update Library.
+
 An empty directory or one containing only unsupported files gives an empty
 track list. A missing directory, a file supplied as the directory, or a read
 error displays a library error without loading a partial list. A malformed,
