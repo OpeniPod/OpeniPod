@@ -22,6 +22,8 @@ func NewFake() *Fake {
 
 func (f *Fake) Events() <-chan app.Event { return f.events }
 
+func (f *Fake) Close() error { return nil }
+
 func (f *Fake) Play(ctx context.Context, track music.Track) error {
 	if err := f.emit(ctx, app.PlaybackStarted{Track: track}); err != nil {
 		return err
