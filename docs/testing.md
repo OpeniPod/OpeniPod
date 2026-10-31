@@ -60,4 +60,24 @@ Settings and cycle Equalizer. Check both running and paused playback, change
 tracks, and restart with the same settings file. Use a track with bass and
 vocals to compare the profiles; enabled presets deliberately reserve headroom.
 
-The terminal interaction can be smoke-tested with `go run ./cmd/player` and a keyboard, or by piping key bytes. Hardware tests and real audio integration tests will be added only when those implementations exist.
+The terminal interaction can be smoke-tested with `go run ./cmd/player` and a
+keyboard, or by piping key bytes. Automated tests do not open an audio device;
+use the listening check above to verify real output. Hardware checks require
+the actual board and peripherals.
+
+## Interactive window
+
+`internal/desktop` tests exercise key translation, frame updates, expose,
+resize and aspect ratio, native driver errors, cancellation during input,
+and concurrent rendering. A test driver replaces the native window, while
+rendering uses the existing `ui.Display`. Command integration tests supply
+FakePlayer and a test frontend to check filesystem loading, playback requests,
+and saved settings without opening an audio device or a display in CI.
+
+For a manual check, run `go run ./cmd/preview --music-dir /path/to/Music` from
+an X11 desktop session. Navigate Home, Tracks, Now Playing, and Settings;
+play and pause a real MP3; change volume and equalizer; select Update Library.
+Resize and cover/uncover the window, checking that the image retains its
+aspect ratio and redraws. Close using the window manager and restart to check
+settings persistence. Also check `q`, Ctrl+C, and SIGTERM shutdown. GUI smoke
+tests require a display and audio device and are not part of `make check`.

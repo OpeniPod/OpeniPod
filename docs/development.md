@@ -27,7 +27,8 @@ can lose changes still waiting for the timer; save errors are returned.
 Useful commands:
 
 ```sh
-make run      # desktop prototype
+make run      # terminal player
+make preview  # interactive graphical window with real audio
 make fmt      # rewrite Go files with gofmt
 make test     # unit and integration tests
 make race     # race detector
@@ -40,3 +41,10 @@ If `make check` finds unformatted files, it prints their names and suggests
 running `make fmt` to format them.
 
 Read [architecture](architecture.md) before changing package boundaries, state ownership, or event flow. Keep a branch and PR focused; see [contributing](../CONTRIBUTING.md).
+
+The graphical entry point is `cmd/preview/main.go`. `internal/desktop` wraps
+Shiny's native window and implements both App input and renderer interfaces.
+It uses `ui.Display` for every frame; application logic stays in App. Its
+keyboard mapping lives in `internal/desktop/keys.go`. Run with `--music-dir`
+to select real music; the default is `~/Music`. On Linux, launch from an X11
+session (or XWayland), with the same audio build dependencies as `cmd/player`.

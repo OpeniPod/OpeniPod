@@ -100,6 +100,8 @@ func (p *Player) Play(ctx context.Context, track music.Track) error {
 		return p.reportPlaybackError(ctx, decodeErr)
 	}
 
+	track.Duration = format.SampleRate.D(streamer.Len())
+
 	if err := ctx.Err(); err != nil {
 		return errors.Join(err, streamer.Close())
 	}
