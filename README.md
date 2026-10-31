@@ -84,6 +84,11 @@ is required.
 
 ## Controls
 
+Software processing of EC11 rotation and encoder, Back, and Play/Pause buttons
+is available separately from the keyboard backend. Tests supply signal levels
+and time; real GPIO is not connected yet. See [control signals](docs/controls.md)
+for the decoder policy and integration API.
+
 | Key | Action |
 | --- | --- |
 | `j` / ↓ | Move down |

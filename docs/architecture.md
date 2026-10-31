@@ -25,8 +25,8 @@ Arrows show direct Go imports. `app` uses player, library, and storage through
 interfaces; `cmd/player` supplies their concrete implementations.
 
 `music` has the small `Track` type. `app` defines events, `AppState`, the reducer,
-and consumer-side interfaces. `input` converts keys into events. `ui` renders a
-state snapshot. `library` supplies filesystem and fake adapters; `player`
+and consumer-side interfaces. `input` converts keys and control signals into
+events. `ui` renders a state snapshot. `library` supplies filesystem and fake adapters; `player`
 supplies the fake player; `storage` supplies file and memory adapters.
 `cmd/player` wires them together. The application core imports no terminal,
 audio, or board-specific package.
@@ -134,4 +134,11 @@ or incompatible indexes are errors rather than reasons to rescan. It owns no
 application state, starts no goroutines, and uses no background scan or
 filesystem watcher. The fake library remains the default without a directory.
 
-An Orange Pi input adapter can later translate GPIO buttons or a rotary encoder into the same events as the keyboard. A display adapter can render the same `AppState` snapshot instead of the terminal UI. A real player adapter can implement the small Player interface and report playback events. These adapters should live outside `internal/app`; their composition belongs in a platform-specific entry point or wiring code. This prototype makes no claims about device drivers, audio decoding, or deployment yet.
+`input.Controls` now processes caller-supplied EC11 A/B and button snapshots
+with caller-supplied time. A full-cycle quadrature decoder handles rotation;
+stable-level debouncing handles button presses. It returns existing app events
+and owns no goroutines or application state. See [control signals](controls.md)
+for the signal contract, assumptions, and future GPIO integration.
+
+An Orange Pi input adapter can later feed real GPIO signals into that processor.
+A display adapter can render the same `AppState` snapshot instead of the terminal UI. A real player adapter can implement the small Player interface and report playback events. These adapters should live outside `internal/app`; their composition belongs in a platform-specific entry point or wiring code. This prototype makes no claims about device drivers, audio decoding, or deployment yet.
