@@ -55,6 +55,7 @@ func TestFileLoadJSON(t *testing.T) {
 		{"old file", `{}`, app.DefaultSettings(), false},
 		{"explicit zero", `{"volume":0}`, app.SettingsState{Volume: 0}, false},
 		{"unknown field", `{"volume":30,"future":true}`, app.SettingsState{Volume: 30}, false},
+		{"missing equalizer", `{"volume":30}`, app.SettingsState{Volume: 30}, false},
 		{"truncated", `{"volume":30`, app.SettingsState{}, true},
 		{"wrong type", `{"volume":"loud"}`, app.SettingsState{}, true},
 		{"empty", ``, app.SettingsState{}, true},
@@ -76,6 +77,25 @@ func TestFileLoadJSON(t *testing.T) {
 				t.Fatalf("load changed file: %s, %v", data, err)
 			}
 		})
+	}
+}
+
+func TestFileRoundTripsEqualizerPresets(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	file := storage.NewFile(path)
+	for _, preset := range []app.EqualizerPreset{
+		app.EqualizerOff,
+		app.EqualizerBassBoost,
+		app.EqualizerVocal,
+	} {
+		want := app.SettingsState{Volume: 63, Equalizer: preset}
+		if err := file.SaveSettings(context.Background(), want); err != nil {
+			t.Fatalf("save %q: %v", preset, err)
+		}
+		got, err := file.LoadSettings(context.Background())
+		if err != nil || got != want {
+			t.Fatalf("load preset %q = %+v, %v; want %+v", preset, got, err, want)
+		}
 	}
 }
 

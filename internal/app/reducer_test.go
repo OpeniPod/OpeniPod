@@ -23,11 +23,14 @@ func TestScrollClampsSelection(t *testing.T) {
 		{"tracks lower bound", ScreenTracks, 0, -3, 0},
 		{"tracks upper bound", ScreenTracks, 1, 5, 1},
 		{"empty tracks", ScreenTracks, 0, 1, 0},
+		{"settings reaches equalizer", ScreenSettings, 0, 1, 1},
+		{"settings lower bound", ScreenSettings, 0, -2, 0},
+		{"settings upper bound", ScreenSettings, 1, 5, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			state := AppState{
 				Screen:     tc.screen,
-				Navigation: NavigationState{HomeIndex: tc.start, TrackIndex: tc.start},
+				Navigation: NavigationState{HomeIndex: tc.start, TrackIndex: tc.start, SettingsIndex: tc.start},
 			}
 			if tc.name != "empty tracks" {
 				state.Library.Tracks = []music.Track{{ID: "one"}, {ID: "two"}}
@@ -36,6 +39,8 @@ func TestScrollClampsSelection(t *testing.T) {
 			selection := got.Navigation.HomeIndex
 			if tc.screen == ScreenTracks {
 				selection = got.Navigation.TrackIndex
+			} else if tc.screen == ScreenSettings {
+				selection = got.Navigation.SettingsIndex
 			}
 			if selection != tc.want {
 				t.Fatalf("selection = %d, want %d", selection, tc.want)

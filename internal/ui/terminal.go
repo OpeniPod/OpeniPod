@@ -48,7 +48,14 @@ func (t *Terminal) Render(state app.AppState) error {
 			view.WriteString("Select a track to start\n")
 		}
 	case app.ScreenSettings:
-		fmt.Fprintf(&view, "Settings\n\nVolume: %d%%\n\n> Update Library\n", state.Settings.Volume)
+		fmt.Fprintf(&view, "Settings\n\nVolume: %d%%\n\n", state.Settings.Volume)
+		updateMark, equalizerMark := "  ", "  "
+		if state.Navigation.SettingsIndex == 0 {
+			updateMark = "> "
+		} else {
+			equalizerMark = "> "
+		}
+		fmt.Fprintf(&view, "%sUpdate Library\n%sEqualizer: %s\nEnter cycles equalizer presets\n", updateMark, equalizerMark, state.Settings.Equalizer)
 	}
 	if state.Error != "" {
 		fmt.Fprintf(&view, "\nError: %s\n", state.Error)

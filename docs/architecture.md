@@ -48,13 +48,30 @@ keyboard key → input event → App → Reduce → state + command
 Events are Go types, not string tags. `SelectPressed` on a track requests
 `Play`; the fake player emits `PlaybackStarted`; only that event marks playback
 as playing. Library and settings are loaded at startup through their
-interfaces. The Settings screen exposes `Update Library` as its only selectable
-item; selecting it invokes `Library.Refresh` as a synchronous one-off
+interfaces. The Settings screen exposes `Update Library` and `Equalizer` as
+selectable items. Selecting `Update Library` invokes `Library.Refresh` as a synchronous one-off
 operation. The app waits for it to finish and replaces its track list only
 after success. A load or refresh failure becomes visible in state; a refresh
 failure preserves the existing in-memory list and saved index. Command and
 rendering failures return with context to `main`, where `slog` reports them
 once.
+
+Selecting `Equalizer` cycles the fixed Off, Bass boost, and Vocal presets in the
+reducer. App sends the selected preset through `Player.SetEqualizer` and the
+existing settings-save command. The preset lives in `SettingsState`; UI only
+renders it. Startup applies the saved preset before playback. Older files
+default to Off and unknown values are normalized to Off.
+
+The real player filters the resampled 48 kHz stereo stream before `beep.Ctrl`
+and volume. Off is an exact bypass. Bass boost uses a +6 dB low shelf at 150 Hz;
+Vocal uses a +4 dB peaking filter at 2 kHz with Q 0.8. Biquad coefficients follow
+the [W3C Audio EQ Cookbook](https://www.w3.org/TR/audio-eq-cookbook/).
+Input attenuation compensates each preset's maximum gain; enabled profiles
+bound output samples to `[-1, 1]`. Each channel has independent filter history.
+Each new track gets a fresh filter; a preset change resets filter history while
+retaining source position and pause state. The player takes its mutex and then
+the speaker lock when updating the active filter, following the existing audio
+lock order. Audio callbacks do not acquire the player mutex.
 
 Home and track-list movement **clamps** at the first and last item. Next and previous track commands wrap around the loaded library. Volume clamps to 0..100. Back returns to Home. These choices keep the initial navigation small and predictable.
 

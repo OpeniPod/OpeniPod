@@ -40,14 +40,16 @@ type Player struct {
 	closed     bool
 	callbackWG sync.WaitGroup
 
-	streamer beep.StreamSeekCloser
-	ctrl     *beep.Ctrl
-	volume   *effects.Volume
+	streamer  beep.StreamSeekCloser
+	ctrl      *beep.Ctrl
+	volume    *effects.Volume
+	equalizer *equalizer
 
-	track        music.Track
-	volumeLevel  int
-	playbackID   uint64
-	playbackStop chan struct{}
+	track           music.Track
+	volumeLevel     int
+	equalizerPreset app.EqualizerPreset
+	playbackID      uint64
+	playbackStop    chan struct{}
 }
 
 func NewPlayer() (*Player, error) {
@@ -124,6 +126,7 @@ func (p *Player) Play(ctx context.Context, track music.Track) error {
 			p.streamer = nil
 			p.ctrl = nil
 			p.volume = nil
+			p.equalizer = nil
 			p.track = music.Track{}
 			p.mu.Unlock()
 
@@ -141,9 +144,10 @@ func (p *Player) Play(ctx context.Context, track music.Track) error {
 	p.track = track
 
 	resampled := beep.Resample(4, format.SampleRate, sampleRate, streamer)
+	p.equalizer = newEqualizer(resampled, p.equalizerPreset)
 
 	p.ctrl = &beep.Ctrl{
-		Streamer: resampled,
+		Streamer: p.equalizer,
 		Paused:   false,
 	}
 
@@ -158,6 +162,7 @@ func (p *Player) Play(ctx context.Context, track music.Track) error {
 		p.streamer = nil
 		p.ctrl = nil
 		p.volume = nil
+		p.equalizer = nil
 		p.track = music.Track{}
 		p.mu.Unlock()
 		return errors.Join(err, streamer.Close())
@@ -212,6 +217,7 @@ func (p *Player) stopCurrentPlayback() error {
 	p.streamer = nil
 	p.ctrl = nil
 	p.volume = nil
+	p.equalizer = nil
 	p.track = music.Track{}
 
 	speaker.Clear()
@@ -259,6 +265,7 @@ func (p *Player) Close() error {
 	p.streamer = nil
 	p.ctrl = nil
 	p.volume = nil
+	p.equalizer = nil
 	p.track = music.Track{}
 	if p.playbackStop != nil {
 		close(p.playbackStop)
@@ -375,6 +382,28 @@ func (p *Player) SetVolume(ctx context.Context, vol int) error {
 	return nil
 }
 
+// SetEqualizer changes tone without restarting or resuming the current track.
+func (p *Player) SetEqualizer(ctx context.Context, preset app.EqualizerPreset) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if !preset.Valid() {
+		return fmt.Errorf("unknown equalizer preset %q", string(preset))
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed {
+		return ErrClosed
+	}
+	p.equalizerPreset = preset
+	if p.equalizer != nil {
+		speaker.Lock()
+		p.equalizer.setPreset(preset)
+		speaker.Unlock()
+	}
+	return nil
+}
+
 func (p *Player) finishPlayback(playbackID uint64, streamer beep.StreamSeekCloser) {
 	p.mu.Lock()
 	if p.closed || p.playbackID != playbackID || p.streamer == nil {
@@ -385,6 +414,7 @@ func (p *Player) finishPlayback(playbackID uint64, streamer beep.StreamSeekClose
 	p.streamer = nil
 	p.ctrl = nil
 	p.volume = nil
+	p.equalizer = nil
 	p.track = music.Track{}
 	p.playbackStop = nil
 	p.mu.Unlock()

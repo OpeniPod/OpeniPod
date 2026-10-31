@@ -34,4 +34,18 @@ sample default, empty libraries, load errors, cached startup, the Settings
 UI with piped input.
 Audio decoding is outside these tests.
 
+Equalizer tests check the fixed presets' frequency response with synthetic
+tones, exact Off bypass, independent stereo channels, stream errors and partial
+buffers, bounded output, and consistent filter state across buffer sizes and
+preset changes. Player control tests check live updates, pause preservation,
+invalid commands, and synchronized streaming under the race detector; they do
+not open an audio device. Application, storage, and command tests check Settings
+navigation, preset cycling, preservation of volume, error propagation, old
+settings files, and restoration of the selected preset across restarts.
+
+For a listening check, run with a real MP3 library, start a track, then open
+Settings and cycle Equalizer. Check both running and paused playback, change
+tracks, and restart with the same settings file. Use a track with bass and
+vocals to compare the profiles; enabled presets deliberately reserve headroom.
+
 The terminal interaction can be smoke-tested with `go run ./cmd/player` and a keyboard, or by piping key bytes. Hardware tests and real audio integration tests will be added only when those implementations exist.

@@ -8,6 +8,7 @@ type playTrack struct{ track music.Track }
 type pausePlayback struct{}
 type resumePlayback struct{}
 type setVolume struct{ volume int }
+type setEqualizer struct{ preset EqualizerPreset }
 type saveSettings struct{ settings SettingsState }
 type refreshLibrary struct{}
 
@@ -15,6 +16,7 @@ func (playTrack) isCommand()      {}
 func (pausePlayback) isCommand()  {}
 func (resumePlayback) isCommand() {}
 func (setVolume) isCommand()      {}
+func (setEqualizer) isCommand()   {}
 func (saveSettings) isCommand()   {}
 func (refreshLibrary) isCommand() {}
 
@@ -27,6 +29,8 @@ func Reduce(state AppState, event Event) (AppState, []command) {
 			state.Navigation.HomeIndex = clamp(state.Navigation.HomeIndex+e.Delta, 0, 2)
 		case ScreenTracks:
 			state.Navigation.TrackIndex = clamp(state.Navigation.TrackIndex+e.Delta, 0, max(0, len(state.Library.Tracks)-1))
+		case ScreenSettings:
+			state.Navigation.SettingsIndex = clamp(state.Navigation.SettingsIndex+e.Delta, 0, 1)
 		}
 	case SelectPressed:
 		switch state.Screen {
@@ -40,8 +44,21 @@ func Reduce(state AppState, event Event) (AppState, []command) {
 				state.Screen = ScreenSettings
 			}
 		case ScreenSettings:
-			state.Error = ""
-			return state, []command{refreshLibrary{}}
+			switch state.Navigation.SettingsIndex {
+			case 0:
+				state.Error = ""
+				return state, []command{refreshLibrary{}}
+			case 1:
+				preset := EqualizerOff
+				switch state.Settings.Equalizer {
+				case EqualizerOff:
+					preset = EqualizerBassBoost
+				case EqualizerBassBoost:
+					preset = EqualizerVocal
+				}
+				state.Settings.Equalizer = preset
+				return state, []command{setEqualizer{preset}, saveSettings{state.Settings}}
+			}
 		case ScreenTracks:
 			if len(state.Library.Tracks) > 0 {
 				track := state.Library.Tracks[state.Navigation.TrackIndex]
@@ -74,6 +91,9 @@ func Reduce(state AppState, event Event) (AppState, []command) {
 	case SettingsLoaded:
 		settings := e.Settings
 		settings.Volume = clamp(settings.Volume, 0, 100)
+		if !settings.Equalizer.Valid() {
+			settings.Equalizer = EqualizerOff
+		}
 		state.Settings = settings
 	case LibraryLoaded:
 		state.Library.Tracks = append([]music.Track(nil), e.Tracks...)

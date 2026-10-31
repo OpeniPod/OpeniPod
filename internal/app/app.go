@@ -16,6 +16,7 @@ type Player interface {
 	Pause(context.Context) error
 	Resume(context.Context) error
 	SetVolume(context.Context, int) error
+	SetEqualizer(context.Context, EqualizerPreset) error
 	Close() error
 }
 
@@ -105,6 +106,12 @@ func (a *App) Run(ctx context.Context) (runErr error) {
 			return nil
 		}
 		return fmt.Errorf("set initial volume: %w", err)
+	}
+	if err := a.player.SetEqualizer(runCtx, a.state.Settings.Equalizer); err != nil {
+		if runCtx.Err() != nil {
+			return nil
+		}
+		return fmt.Errorf("set initial equalizer: %w", err)
 	}
 	tracks, err := a.library.Load(runCtx)
 	if err != nil {
@@ -227,6 +234,10 @@ func (a *App) execute(ctx context.Context, command command) error {
 	case setVolume:
 		if err := a.player.SetVolume(ctx, c.volume); err != nil {
 			return fmt.Errorf("set volume: %w", err)
+		}
+	case setEqualizer:
+		if err := a.player.SetEqualizer(ctx, c.preset); err != nil {
+			return fmt.Errorf("set equalizer: %w", err)
 		}
 	case saveSettings:
 		a.pendingSettings = c.settings

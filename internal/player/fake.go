@@ -3,6 +3,7 @@ package player
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/OpeniPod/OpeniPod/internal/app"
 	"github.com/OpeniPod/OpeniPod/internal/music"
@@ -10,10 +11,11 @@ import (
 
 // Fake accepts playback commands and reports transitions; it produces no sound.
 type Fake struct {
-	events  chan app.Event
-	Track   music.Track
-	Playing bool
-	Volume  int
+	events    chan app.Event
+	Track     music.Track
+	Playing   bool
+	Volume    int
+	Equalizer app.EqualizerPreset
 }
 
 func NewFake() *Fake {
@@ -54,6 +56,17 @@ func (f *Fake) SetVolume(ctx context.Context, volume int) error {
 		return err
 	}
 	f.Volume = volume
+	return nil
+}
+
+func (f *Fake) SetEqualizer(ctx context.Context, preset app.EqualizerPreset) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if !preset.Valid() {
+		return fmt.Errorf("unknown equalizer preset %q", string(preset))
+	}
+	f.Equalizer = preset
 	return nil
 }
 

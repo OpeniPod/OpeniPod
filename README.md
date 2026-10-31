@@ -67,8 +67,20 @@ Pending changes are saved before shutdown. On Linux the default
 file is `$XDG_CONFIG_HOME/openipod/settings.json`, or
 `$HOME/.config/openipod/settings.json` when `XDG_CONFIG_HOME` is unset.
 Use `--settings-file /path/to/settings.json` to choose another location.
-A missing file starts with default settings (volume 50%); an invalid file causes
+A missing file starts with default settings (volume 50%, equalizer off); an invalid file causes
 a startup error. Parent directories are created on the first save.
+
+In **Settings**, move from **Update Library** down to **Equalizer** with `j` or
+↓. Enter cycles **Off → Bass boost → Vocal → Off**. The selected preset applies
+to the current and subsequent tracks without restarting playback or changing
+the volume setting. It also works while paused and is restored after a restart.
+Older settings files without an equalizer field use Off; an unknown preset
+falls back to Off.
+
+Off leaves audio unchanged. Bass boost emphasizes low frequencies; Vocal
+emphasizes the speech range. Enabled presets reserve headroom to avoid overload,
+so their overall loudness can be lower than Off. No additional audio dependency
+is required.
 
 ## Controls
 
