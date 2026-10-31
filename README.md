@@ -2,7 +2,9 @@
 
 OpeniPod is a team learning project for a standalone music player inspired by the iPod. The intended device uses an Orange Pi Zero, a small display, physical controls, local music, and Linux. The desktop app has a working audio player; hardware support is not yet implemented.
 
-The runnable desktop slice has a terminal UI, keyboard input, a filesystem or sample music library, a fake player that emits playback events without sound, and file-backed volume settings. It demonstrates the application flow while the hardware and real audio work remain separate.
+The desktop app provides a terminal UI and an interactive graphical preview,
+keyboard input, a filesystem music library, real MP3 playback, and file-backed
+volume and equalizer settings. Fake adapters remain available for tests.
 
 ## Build and run
 
@@ -45,7 +47,9 @@ There is no background scan or filesystem watcher.
 
 The library indexes regular files with `.mp3`, `.flac`, `.wav`, `.ogg`, `.m4a`,
 and `.aac` extensions, ignoring case; only MP3 files can currently be played.
-Titles are filenames including extensions; tags and duration are not read.
+Titles are filenames including extensions; artist and album metadata are not
+read. When an MP3 starts playing, the decoder supplies its duration so Now
+Playing can show the total time and progress.
 Files are sorted lexicographically by path within the directory. Each track
 has an absolute, cleaned path and a stable ID derived from that path. Renaming
 or moving a file changes its ID. Symbolic links inside the directory are
@@ -96,6 +100,31 @@ is required.
 
 ## Display previews
 
+Run the existing 240×320 renderer in an interactive desktop window:
+
+```sh
+make preview
+# Choose your music directory and initial window scale:
+go run ./cmd/preview --music-dir "/path/to/Music" --scale 2
+```
+
+On Linux the window uses X11; run it from your graphical desktop session
+(`DISPLAY` must be set). Under Wayland it needs XWayland. It uses Shiny's Go
+X11 driver and needs no additional native GUI development packages on Linux.
+The initial size is 480×640 (scale 2); `--scale` accepts 1..4. Resizing keeps the
+original display's aspect ratio and adds black borders when necessary.
+
+The window uses the real audio player and filesystem library. The default
+music directory is `~/Music`; if it is missing, the UI shows a library error.
+Choose another directory with `--music-dir`. MP3 playback, manual library
+updates, volume, and equalizer use the same App as the terminal version.
+`--settings-file` works here too; by default both commands share settings.
+Avoid running both at the same time with the same settings file.
+
+Focus the window and use the keys in the controls table below. Close the
+window, press `q`, or use Ctrl+C to quit and save pending settings. Mouse
+navigation and on-screen buttons are not implemented.
+
 The 240×320 display renderer uses an embedded font and can be tested without
 hardware. Generate PNG examples for each screen, an empty library, and error
 states with:
@@ -125,10 +154,10 @@ for the decoder policy and integration API.
 | `+` / `-` | Volume by 10% |
 | `q` | Quit |
 
-Open **Tracks**, choose a track from the filesystem or sample library, then view
-its fake playback state in **Now Playing**. No audio is produced. Library
-updates run synchronously and replace the track list on success. Volume settings
-persist across restarts.
+Open **Tracks** and choose a real MP3 from the filesystem library to play it
+and view its progress in **Now Playing**. The terminal command's sample library
+contains no audio files. Library updates run synchronously and replace the track
+list on success. Volume settings persist across restarts.
 
 ## Checks
 

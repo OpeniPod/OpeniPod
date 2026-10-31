@@ -5,7 +5,7 @@
 This is one Go process: a modular monolith. It keeps the first prototype easy to run and debug while allowing contributors to replace one adapter at a time. There is no internal network protocol or service deployment to coordinate.
 
 ```text
-cmd/player (composition root)
+cmd/player (terminal composition root)
    ├──> internal/app
    ├──> internal/input
    ├──> internal/ui
@@ -13,7 +13,15 @@ cmd/player (composition root)
    ├──> internal/library
    └──> internal/storage
 
+cmd/preview (window composition root)
+   ├──> internal/app
+   ├──> internal/desktop ──> internal/ui
+   ├──> internal/player
+   ├──> internal/library
+   └──> internal/storage
+
 internal/input   ─┐
+internal/desktop  │
 internal/ui       │
 internal/player   ├──> internal/app ──> internal/music
 internal/storage ─┘
@@ -22,17 +30,25 @@ internal/library ─────────────────────
 ```
 
 Arrows show direct Go imports. `app` uses player, library, and storage through
-interfaces; `cmd/player` supplies their concrete implementations.
+interfaces; the entry points supply their concrete implementations.
 
 `music` has the small `Track` type. `app` defines events, `AppState`, the reducer,
 and consumer-side interfaces. `input` converts keys and control signals into
 events. `ui` renders a state snapshot to the terminal or to a 240×320 RGBA
 image. The image renderer uses an embedded font and can be exercised through
 PNG examples without a physical display. `library` supplies filesystem and
-fake adapters; `player` supplies the fake player; `storage` supplies file and
-memory adapters.
-`cmd/player` wires them together. The application core imports no terminal,
-audio, or board-specific package.
+fake adapters; `player` supplies real and fake players; `storage` supplies
+file and memory adapters.
+`cmd/player` wires the terminal frontend; `cmd/preview` wires the native window
+with the real player and filesystem library. The application core imports no
+terminal, audio, or board-specific package.
+
+`internal/desktop` implements both `app.Input` and `app.Renderer`. Shiny owns
+native window events; the adapter translates keys and window close to App
+input events. `Render` passes each supplied snapshot to `ui.Display`, scales
+its image, and publishes it to the window. Expose and resize events reuse only
+the last image, without retaining or changing AppState. Linux uses Shiny's X11
+driver; the core and image renderer have no window-system dependency.
 
 ## State and event flow
 
@@ -41,7 +57,7 @@ The `App` event loop is the sole owner of mutable `AppState`. The reducer comput
 ```text
 keyboard key → input event → App → Reduce → state + command
                                        │
-                                       └→ FakePlayer.Play(track)
+                                       └→ Player.Play(track)
                                               ↓
                                         PlaybackStarted event
                                               ↓
@@ -49,8 +65,9 @@ keyboard key → input event → App → Reduce → state + command
 ```
 
 Events are Go types, not string tags. `SelectPressed` on a track requests
-`Play`; the fake player emits `PlaybackStarted`; only that event marks playback
-as playing. Library and settings are loaded at startup through their
+`Play`; the player emits `PlaybackStarted`; only that event marks playback
+as playing. The real player includes the decoded duration in `PlaybackStarted`.
+Library and settings are loaded at startup through their
 interfaces. The Settings screen exposes `Update Library` and `Equalizer` as
 selectable items. Selecting `Update Library` invokes `Library.Refresh` as a synchronous one-off
 operation. The app waits for it to finish and replaces its track list only
@@ -90,6 +107,15 @@ with a short timeout, so cancellation can release terminal raw mode and
 restore terminal settings. No mutex protects AppState because it has one
 owner.
 
+For the window frontend, the same input worker handles native keyboard,
+resize, expose, and close events. App calls `Render` in its own loop. An
+adapter-local mutex serializes drawing, buffer replacement, and repainting;
+it does not protect application state. Context cancellation wakes the native
+event queue so a blocked input worker can exit. The window and display font
+resources are released only after `App.Run` has stopped its input worker and
+closed the player. Window close sends `QuitRequested`, allowing App to flush
+pending settings before exit.
+
 Beep's `speaker.Close` stops audio playback, but its Oto dependency documents
 that the underlying driver context cannot be closed. The application creates
 no separate audio process; the operating system reclaims the driver context
@@ -110,7 +136,7 @@ track and reports playback events without audio. `Memory` stores settings only
 until process exit and remains available for tests. These make UI and
 application work possible without music files or a board.
 
-`File` implements the same Storage interface and is used by `cmd/player`.
+`File` implements the same Storage interface and is used by both entry points.
 It stores the complete `SettingsState` as compact JSON. The default path is
 `openipod/settings.json` under `os.UserConfigDir()`; `--settings-file` overrides
 it. A missing file uses default settings, including volume 50%; invalid JSON
@@ -125,7 +151,7 @@ save settings. The reducer emits a save command; App schedules it and calls
 Storage when the timer fires or pending changes need flushing on shutdown.
 
 `Filesystem` implements the same Library interface and is selected by
-`--music-dir` in `cmd/player`. It stores a versioned, root-specific index at
+`--music-dir` in both entry points. It stores a versioned, root-specific index at
 `<cleaned-absolute-music-root>/.openipod-library.json`. A missing index causes
 the first `Load` to scan recursively and atomically save the result; subsequent
 loads read the index only, without walking the directory or statting tracks.
@@ -143,7 +169,8 @@ SHA-256 hashes of cleaned absolute paths. Scans observe context cancellation
 and return no partial list after a read or save error. Malformed, mismatched,
 or incompatible indexes are errors rather than reasons to rescan. It owns no
 application state, starts no goroutines, and uses no background scan or
-filesystem watcher. The fake library remains the default without a directory.
+filesystem watcher. The terminal command defaults to the fake library without
+a directory; the window command defaults to the filesystem library at `~/Music`.
 
 `input.Controls` now processes caller-supplied EC11 A/B and button snapshots
 with caller-supplied time. A full-cycle quadrature decoder handles rotation;
@@ -153,8 +180,6 @@ for the signal contract, assumptions, and future GPIO integration.
 
 An Orange Pi input adapter can later feed real GPIO signals into that processor.
 The current image renderer is hardware-independent; a future display adapter
-can transfer its RGBA output to a physical display. A real player adapter can
-implement the small Player interface and report playback events. These adapters
-should live outside `internal/app`; their composition belongs in a
-platform-specific entry point or wiring code. This prototype makes no claims
-about device drivers, audio decoding, or deployment yet.
+can transfer its RGBA output to a physical display. The window preview exercises
+the existing app and MP3 player without board-specific display drivers or
+deployment.
