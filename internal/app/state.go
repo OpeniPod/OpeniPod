@@ -25,8 +25,9 @@ const (
 )
 
 type NavigationState struct {
-	HomeIndex  int
-	TrackIndex int
+	HomeIndex     int
+	TrackIndex    int
+	SettingsIndex int
 }
 
 type PlayerState struct {
@@ -41,7 +42,8 @@ type LibraryState struct {
 }
 
 type SettingsState struct {
-	Volume int `json:"volume"`
+	Volume    int             `json:"volume"`
+	Equalizer EqualizerPreset `json:"equalizer,omitempty"`
 }
 
 // DefaultSettings supplies defaults, including fields absent from older files.

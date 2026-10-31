@@ -128,6 +128,38 @@ func TestRunMenuUpdateRecoversInvalidIndex(t *testing.T) {
 	}
 }
 
+func TestRunPersistsEqualizerPresetAcrossRuns(t *testing.T) {
+	settingsPath := filepath.Join(t.TempDir(), "settings.json")
+	args := []string{"--settings-file", settingsPath}
+
+	bassBoost := runWithInput(t, args, "jj\nj\n")
+	if !strings.Contains(bassBoost, "> Equalizer: Bass boost\n") {
+		t.Fatalf("selecting the equalizer did not choose Bass boost:\n%s", bassBoost)
+	}
+	stored, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(stored), `"equalizer":"bass_boost"`) {
+		t.Fatalf("settings file did not store Bass boost: %s", stored)
+	}
+
+	restored := runWithInput(t, args, "jj\n")
+	if !strings.Contains(restored, "Equalizer: Bass boost\n") {
+		t.Fatalf("next run did not restore Bass boost:\n%s", restored)
+	}
+
+	vocal := runWithInput(t, args, "jj\nj\n")
+	if !strings.Contains(vocal, "> Equalizer: Vocal\n") {
+		t.Fatalf("cycling from Bass boost did not choose Vocal:\n%s", vocal)
+	}
+
+	off := runWithInput(t, args, "jj\nj\n")
+	if !strings.Contains(off, "> Equalizer: Off\n") {
+		t.Fatalf("cycling from Vocal did not choose Off:\n%s", off)
+	}
+}
+
 func runWithInput(t *testing.T, args []string, keys string) string {
 	t.Helper()
 	args = append([]string{"--settings-file", filepath.Join(t.TempDir(), "settings.json")}, args...)
