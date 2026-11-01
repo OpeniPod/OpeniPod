@@ -34,10 +34,10 @@ or incompatible cache errors. Controlled filesystem failures and cancellation
 make error tests deterministic. The permission test skips when the process can
 read a directory despite its permissions, as can happen when running as root.
 Application tests check that refresh failures retain the previous track list
-and cancellation stops the app. Command tests exercise `--music-dir`, the
-sample default, empty libraries, load errors, cached startup, the Settings
-`Update Library` item, and recovery from an invalid index through the terminal
-UI with piped input.
+and cancellation stops the app. `cmd/player` command tests supply FakePlayer,
+typed App input, and a capturing renderer. They exercise `--music-dir`, the
+`~/Music` default, empty libraries, load errors, cached startup, the Settings
+`Update Library` item, saved settings, and recovery from an invalid index.
 Audio scan tests use small generated silence fixtures for all supported
 extensions and cover text renamed to each audio extension, audio with a
 different extension, MP3 tag-only files, damaged metadata, cached versus
@@ -59,33 +59,36 @@ Settings and cycle Equalizer. Check both running and paused playback, change
 tracks, and restart with the same settings file. Use a track with bass and
 vocals to compare the profiles; enabled presets deliberately reserve headroom.
 
-The terminal interaction can be smoke-tested with `go run ./cmd/player` and a
-keyboard, or by piping key bytes. Automated tests do not open an audio device;
-use the listening check above to verify real output. Hardware checks require
-the actual board and peripherals.
+Automated command tests do not open an audio device or native window. Use the
+listening check above to verify real output. Hardware checks require the
+actual board and peripherals.
 
-## Interactive window
+## Native window
 
 `internal/desktop` tests exercise key translation, frame updates, expose,
 resize and aspect ratio, native driver errors, cancellation during input,
 and concurrent rendering. A test driver replaces the native window, while
 rendering uses the existing `ui.Display`. Command integration tests supply
-FakePlayer and a test frontend to check filesystem loading, playback requests,
-and saved settings without opening an audio device or a display in CI.
+FakePlayer, typed App input, and a capturing renderer to check filesystem
+loading, playback requests, and saved settings without opening an audio device
+or a display in CI.
 
-For a manual check, run `go run ./cmd/preview --music-dir /path/to/Music` from
-an X11 desktop session. Navigate Home, Tracks, Now Playing, and Settings;
-play and pause a real MP3; change volume and equalizer; select Update Library.
-Resize and cover/uncover the window, checking that the image retains its
-aspect ratio and redraws. Close using the window manager and restart to check
-settings persistence. Also check `q`, Ctrl+C, and SIGTERM shutdown. GUI smoke
-tests require a display and audio device and are not part of `make check`.
+For a manual check, run `go run ./cmd/player --music-dir /path/to/Music` from
+an X11 desktop session or Wayland with XWayland. Navigate Home, Tracks, Now
+Playing, and Settings; play and pause a real MP3; change volume and equalizer;
+select Update Library. Resize and cover/uncover the window, checking that the
+image retains its aspect ratio and redraws. Close using the window manager and
+restart to check settings persistence. Also check `q`, Ctrl+C, and SIGTERM
+shutdown. GUI smoke tests require a display and audio device and are not part
+of `make check`.
 
 Diagnostic tests cover lifecycle/playback records, recovery and fatal failures,
-absence of error duplication, filtering, concurrent journal priorities and UI
-separation. Integration checks also cover filesystem-library startup and
-recovery through Update Library, plus successful, failed and cancelled
-refresh diagnostics without duplicate records. On Linux with a running
-journald, build the player and run
-`bash scripts/check-journal.sh ./player` for real journal collection and query
-checks. See [logging](logging.md) for prerequisites and storage configuration.
+absence of error duplication, filtering, and concurrent journal priorities.
+Integration checks also cover filesystem-library startup and recovery through
+Update Library, plus successful, failed and cancelled refresh diagnostics
+without duplicate records. On Linux with a running journald, X11 or XWayland,
+and a working audio device, build the player and run
+`bash scripts/check-journal.sh ./player`. The script launches the graphical
+player, waits for its startup records, sends SIGTERM, and checks the graceful
+stop records in the journal. See [logging](logging.md) for prerequisites and
+storage configuration.

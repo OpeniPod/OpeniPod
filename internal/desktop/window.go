@@ -48,12 +48,12 @@ func Run(scale int, run func(*Window) error) (runErr error) {
 	}
 	driver.Main(func(s screen.Screen) {
 		native, err := s.NewWindow(&screen.NewWindowOptions{
-			Title:  "OpeniPod Preview",
+			Title:  "OpeniPod",
 			Width:  ui.ScreenWidth * scale,
 			Height: ui.ScreenHeight * scale,
 		})
 		if err != nil {
-			runErr = fmt.Errorf("open preview window (Linux requires an X11 display): %w", err)
+			runErr = fmt.Errorf("open window (Linux requires an X11 display): %w", err)
 			return
 		}
 		defer native.Release()
@@ -85,7 +85,7 @@ func (w *Window) Render(state app.AppState) error {
 
 type wakeup struct{}
 
-// Run translates window events to the same typed events as terminal input.
+// Run translates window events to typed application events.
 func (w *Window) Run(ctx context.Context, events chan<- app.Event) error {
 	// NextEvent blocks without a context. Wake it on cancellation, and wait for
 	// that wakeup to finish before the owner can release the native window.
@@ -122,7 +122,7 @@ func (w *Window) Run(ctx context.Context, events chan<- app.Event) error {
 				return err
 			}
 		case error:
-			return fmt.Errorf("preview window: %w", e)
+			return fmt.Errorf("window: %w", e)
 		}
 		if input != nil {
 			select {
@@ -159,7 +159,7 @@ func (w *Window) present() error {
 	if w.buffer == nil || w.buffer.Size() != w.size {
 		buffer, err := w.screen.NewBuffer(w.size)
 		if err != nil {
-			return fmt.Errorf("allocate preview frame: %w", err)
+			return fmt.Errorf("allocate window frame: %w", err)
 		}
 		if w.buffer != nil {
 			w.buffer.Release()

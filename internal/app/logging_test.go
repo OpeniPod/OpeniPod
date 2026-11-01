@@ -15,7 +15,6 @@ import (
 	"github.com/OpeniPod/OpeniPod/internal/music"
 	"github.com/OpeniPod/OpeniPod/internal/player"
 	"github.com/OpeniPod/OpeniPod/internal/storage"
-	"github.com/OpeniPod/OpeniPod/internal/ui"
 )
 
 func records(t *testing.T, out *bytes.Buffer) []map[string]any {
@@ -152,7 +151,7 @@ func TestLibraryRefreshDiagnostics(t *testing.T) {
 }
 
 func TestRecoverableErrorsAndNoRenderNoise(t *testing.T) {
-	var out, screen bytes.Buffer
+	var out bytes.Buffer
 	track := music.Track{ID: "broken-track", Title: "Broken track"}
 	events := []app.Event{app.PlaybackStarted{Track: track}}
 	for i := 0; i < 100; i++ {
@@ -160,7 +159,7 @@ func TestRecoverableErrorsAndNoRenderNoise(t *testing.T) {
 	}
 	events = append(events, app.PlaybackError{Err: errors.New("decoder failed")}, app.QuitRequested{})
 	application := app.New(player.NewFake(), failedLibrary{errors.New("library unavailable")}, storage.NewMemory(50),
-		eventInput{events: events}, ui.NewTerminal(&screen), app.WithLogger(diagnosticLogger(&out)))
+		eventInput{events: events}, silentUI{}, app.WithLogger(diagnosticLogger(&out)))
 	if err := application.Run(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -186,9 +185,6 @@ func TestRecoverableErrorsAndNoRenderNoise(t *testing.T) {
 	}
 	if failures != 2 || len(logs) != 7 {
 		t.Fatalf("errors duplicated or redraw/progress logged: %v", logs)
-	}
-	if bytes.Contains(screen.Bytes(), []byte("\"component\"")) || bytes.Contains(screen.Bytes(), []byte("application started")) {
-		t.Fatal("diagnostics leaked into terminal UI")
 	}
 }
 
