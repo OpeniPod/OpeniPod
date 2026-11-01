@@ -52,6 +52,15 @@ type Player struct {
 	playbackStop    chan struct{}
 }
 
+// resetTrackLocked clears the current playback state. The caller must hold p.mu.
+func (p *Player) resetTrackLocked() {
+	p.streamer = nil
+	p.ctrl = nil
+	p.volume = nil
+	p.equalizer = nil
+	p.track = music.Track{}
+}
+
 func NewPlayer() (*Player, error) {
 	speakerInit.Do(func() {
 		speakerInitErr = speaker.Init(sampleRate, sampleRate.N(time.Second/10))
@@ -125,11 +134,7 @@ func (p *Player) Play(ctx context.Context, track music.Track) error {
 	speaker.Clear()
 	if p.streamer != nil {
 		if err := p.streamer.Close(); err != nil {
-			p.streamer = nil
-			p.ctrl = nil
-			p.volume = nil
-			p.equalizer = nil
-			p.track = music.Track{}
+			p.resetTrackLocked()
 			p.mu.Unlock()
 
 			if newErr := streamer.Close(); newErr != nil {
@@ -161,11 +166,7 @@ func (p *Player) Play(ctx context.Context, track music.Track) error {
 	}
 
 	if err := ctx.Err(); err != nil {
-		p.streamer = nil
-		p.ctrl = nil
-		p.volume = nil
-		p.equalizer = nil
-		p.track = music.Track{}
+		p.resetTrackLocked()
 		p.mu.Unlock()
 		return errors.Join(err, streamer.Close())
 	}
@@ -216,11 +217,7 @@ func (p *Player) stopCurrentPlayback() error {
 	}
 
 	streamer := p.streamer
-	p.streamer = nil
-	p.ctrl = nil
-	p.volume = nil
-	p.equalizer = nil
-	p.track = music.Track{}
+	p.resetTrackLocked()
 
 	speaker.Clear()
 	p.mu.Unlock()
@@ -264,11 +261,7 @@ func (p *Player) Close() error {
 	close(p.shutdown)
 	p.playbackID++
 	streamer := p.streamer
-	p.streamer = nil
-	p.ctrl = nil
-	p.volume = nil
-	p.equalizer = nil
-	p.track = music.Track{}
+	p.resetTrackLocked()
 	if p.playbackStop != nil {
 		close(p.playbackStop)
 	}
@@ -413,11 +406,7 @@ func (p *Player) finishPlayback(playbackID uint64, streamer beep.StreamSeekClose
 		return
 	}
 
-	p.streamer = nil
-	p.ctrl = nil
-	p.volume = nil
-	p.equalizer = nil
-	p.track = music.Track{}
+	p.resetTrackLocked()
 	p.playbackStop = nil
 	p.mu.Unlock()
 

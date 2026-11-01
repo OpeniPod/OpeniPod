@@ -159,7 +159,6 @@ func runWithInput(t *testing.T, args []string, keys string) string {
 	t.Helper()
 	testDir := t.TempDir()
 	args = append([]string{
-		"--settings-file", filepath.Join(testDir, "settings.json"),
 		"--log-file", filepath.Join(testDir, "player.log"),
 	}, args...)
 	in, writer, err := os.Pipe()
@@ -175,7 +174,7 @@ func runWithInput(t *testing.T, args []string, keys string) string {
 		t.Fatal(err)
 	}
 	var out, stderr bytes.Buffer
-	if err := runWith(args, in, &out, &stderr); err != nil {
+	if err := runWith(t, args, in, &out, &stderr); err != nil {
 		t.Fatal(err)
 	}
 	if stderr.Len() != 0 {
@@ -184,12 +183,9 @@ func runWithInput(t *testing.T, args []string, keys string) string {
 	return out.String()
 }
 
-func runWith(args []string, stdin *os.File, stdout, stderr io.Writer) error {
-	testDir, err := os.MkdirTemp("", "openipod-player-test-")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(testDir)
+func runWith(t *testing.T, args []string, stdin *os.File, stdout, stderr io.Writer) error {
+	t.Helper()
+	testDir := t.TempDir()
 	args = append([]string{
 		"--settings-file", filepath.Join(testDir, "settings.json"),
 	}, args...)
@@ -241,7 +237,7 @@ func TestRunFileLoggingKeepsUISeparate(t *testing.T) {
 	}
 	path := filepath.Join(t.TempDir(), "player.log")
 	var stdout, stderr bytes.Buffer
-	if err := runWith([]string{"--log-file", path, "--log-level", "debug"}, stdin, &stdout, &stderr); err != nil {
+	if err := runWith(t, []string{"--log-file", path, "--log-level", "debug"}, stdin, &stdout, &stderr); err != nil {
 		t.Fatal(err)
 	}
 	if stderr.Len() != 0 || strings.Contains(stdout.String(), "application started") {
@@ -319,7 +315,7 @@ func TestRunJournalFailureIsAlreadyRecorded(t *testing.T) {
 	}
 	stdin.Close() // Force a real keyboard-adapter failure.
 	var stdout, stderr bytes.Buffer
-	err = runWith([]string{"--log-target", "journal"}, stdin, &stdout, &stderr)
+	err = runWith(t, []string{"--log-target", "journal"}, stdin, &stdout, &stderr)
 	var recorded *loggedError
 	if !errors.As(err, &recorded) {
 		t.Fatalf("runtime failure not marked as logged: %v", err)
@@ -351,7 +347,7 @@ func TestHelpAndBadConfigurationDoNotStartUI(t *testing.T) {
 		{"--platform", "unknown"}, {"unexpected"},
 	} {
 		var stdout, stderr bytes.Buffer
-		err := runWith(args, nil, &stdout, &stderr)
+		err := runWith(t, args, nil, &stdout, &stderr)
 		if args[0] == "--help" {
 			if err != nil || !strings.Contains(stderr.String(), "log-level") {
 				t.Fatalf("help output: %v, %s", err, &stderr)

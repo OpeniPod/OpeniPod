@@ -11,7 +11,7 @@ type pausePlayback struct{}
 type resumePlayback struct{}
 type setVolume struct{ volume int }
 type setEqualizer struct{ preset EqualizerPreset }
-type saveSettings struct{ settings SettingsState }
+type saveSettings struct{}
 type refreshLibrary struct{}
 
 func (playTrack) isCommand()      {}
@@ -59,7 +59,7 @@ func Reduce(state AppState, event Event) (AppState, []command) {
 					preset = EqualizerVocal
 				}
 				state.Settings.Equalizer = preset
-				return state, []command{setEqualizer{preset}, saveSettings{state.Settings}}
+				return state, []command{setEqualizer{preset}, saveSettings{}}
 			}
 		case ScreenTracks:
 			if len(state.Library.Tracks) > 0 {
@@ -88,7 +88,7 @@ func Reduce(state AppState, event Event) (AppState, []command) {
 		volume := clamp(state.Settings.Volume+e.Delta, 0, 100)
 		if volume != state.Settings.Volume {
 			state.Settings.Volume = volume
-			return state, []command{setVolume{volume}, saveSettings{state.Settings}}
+			return state, []command{setVolume{volume}, saveSettings{}}
 		}
 	case SettingsLoaded:
 		settings := e.Settings
