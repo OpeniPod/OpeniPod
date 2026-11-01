@@ -8,11 +8,10 @@ commands, and runs `go vet ./...`.
 
 GitHub Actions runs on every push to a branch or tag and when a pull request is
 opened, reopened, or updated with new commits. It selects the Go version from
-`go.mod`, runs `make check` to verify formatting, run tests with and without the
-race detector, and run `go vet ./...`, then builds all packages with
-`go build ./...`. Results appear in the pull request's Checks tab; step details
-and logs are available in the Actions run. Run the same checks and build locally
-with `make all`.
+`go.mod` and runs `make all`: formatting, tests with and without the race
+detector, `go vet ./...`, and a build of all packages. Results appear in the
+pull request's Checks tab; step details and logs are available in the Actions
+run. Use `make all` locally for the same checks and build.
 
 ## Test coverage
 

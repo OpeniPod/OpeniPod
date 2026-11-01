@@ -41,17 +41,15 @@ type Renderer interface {
 }
 
 type App struct {
-	state           AppState
-	player          Player
-	library         Library
-	storage         Storage
-	input           Input
-	ui              Renderer
-	settingsTimer   *time.Timer
-	savedSettings   SettingsState
-	pendingSettings SettingsState
-	settingsDirty   bool
-	logger          *slog.Logger
+	state         AppState
+	player        Player
+	library       Library
+	storage       Storage
+	input         Input
+	ui            Renderer
+	settingsTimer *time.Timer
+	savedSettings SettingsState
+	logger        *slog.Logger
 }
 
 type Option func(*App)
@@ -127,14 +125,11 @@ func (a *App) Run(ctx context.Context) (runErr error) {
 		return err
 	}
 	a.savedSettings = a.state.Settings
-	a.settingsDirty = false
 	a.settingsTimer = time.NewTimer(time.Hour)
 	a.settingsTimer.Stop()
 	defer func() {
 		a.settingsTimer.Stop()
-		// Include a state change even if executing its player command failed.
-		a.pendingSettings = a.state.Settings
-		a.settingsDirty = a.pendingSettings != a.savedSettings
+		// Flush the current state even if executing its player command failed.
 		// The run context may already be cancelled when shutdown starts.
 		flushCtx, flushCancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
 		defer flushCancel()
@@ -289,10 +284,8 @@ func (a *App) execute(ctx context.Context, command command) error {
 			return failed("player", "set_equalizer", fmt.Errorf("set equalizer: %w", err), "preset", c.preset)
 		}
 	case saveSettings:
-		a.pendingSettings = c.settings
-		a.settingsDirty = c.settings != a.savedSettings
 		a.settingsTimer.Stop()
-		if a.settingsDirty {
+		if a.state.Settings != a.savedSettings {
 			a.settingsTimer.Reset(500 * time.Millisecond)
 		}
 	case refreshLibrary:
@@ -310,15 +303,15 @@ func (a *App) execute(ctx context.Context, command command) error {
 }
 
 func (a *App) flushSettings(ctx context.Context) error {
-	if !a.settingsDirty {
+	settings := a.state.Settings
+	if settings == a.savedSettings {
 		return nil
 	}
-	if err := a.storage.SaveSettings(ctx, a.pendingSettings); err != nil {
+	if err := a.storage.SaveSettings(ctx, settings); err != nil {
 		return failed("storage", "save_settings", err)
 	}
-	a.logger.Debug("settings saved", "component", "storage", "operation", "save_settings", "volume", a.pendingSettings.Volume)
-	a.savedSettings = a.pendingSettings
-	a.settingsDirty = false
+	a.logger.Debug("settings saved", "component", "storage", "operation", "save_settings", "volume", settings.Volume)
+	a.savedSettings = settings
 	return nil
 }
 

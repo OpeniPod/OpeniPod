@@ -32,7 +32,7 @@ func TestSelectingEqualizerCyclesAndRequestsEffects(t *testing.T) {
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("selected equalizer state = %+v, want %+v", got, want)
 			}
-			wantCommands := []command{setEqualizer{test.want}, saveSettings{want.Settings}}
+			wantCommands := []command{setEqualizer{test.want}, saveSettings{}}
 			if !reflect.DeepEqual(commands, wantCommands) {
 				t.Fatalf("commands = %#v, want %#v", commands, wantCommands)
 			}
@@ -59,7 +59,7 @@ func TestVolumeChangePreservesEqualizer(t *testing.T) {
 	state := AppState{Settings: SettingsState{Volume: 70, Equalizer: EqualizerVocal}}
 	got, commands := Reduce(state, VolumeChanged{Delta: 10})
 	want := SettingsState{Volume: 80, Equalizer: EqualizerVocal}
-	if got.Settings != want || !reflect.DeepEqual(commands, []command{setVolume{80}, saveSettings{want}}) {
+	if got.Settings != want || !reflect.DeepEqual(commands, []command{setVolume{80}, saveSettings{}}) {
 		t.Fatalf("settings = %+v, commands = %#v, want %+v", got.Settings, commands, want)
 	}
 }

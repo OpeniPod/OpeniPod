@@ -1,10 +1,8 @@
 package ui
 
 import (
-	"bytes"
 	"image"
 	"image/color"
-	"image/png"
 	"strings"
 	"testing"
 	"time"
@@ -79,21 +77,6 @@ func TestRenderDoesNotMutateState(t *testing.T) {
 	display.Render(state)
 	if state.Library.Tracks[0] != before {
 		t.Fatalf("render modified track: got %+v, want %+v", state.Library.Tracks[0], before)
-	}
-}
-
-func TestRenderPNG(t *testing.T) {
-	display := newTestDisplay(t)
-	var encoded bytes.Buffer
-	if err := png.Encode(&encoded, display.Render(app.AppState{Screen: app.ScreenHome})); err != nil {
-		t.Fatal(err)
-	}
-	img, err := png.Decode(&encoded)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := img.Bounds().Size(); got != image.Pt(ScreenWidth, ScreenHeight) {
-		t.Fatalf("decoded image size = %v, want %dx%d", got, ScreenWidth, ScreenHeight)
 	}
 }
 

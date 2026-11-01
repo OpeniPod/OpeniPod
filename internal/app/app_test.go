@@ -71,25 +71,12 @@ type silentUI struct{}
 
 func (silentUI) Render(app.AppState) error { return nil }
 
-type settingsInput struct{ events []app.Event }
-
-func (s settingsInput) Run(ctx context.Context, events chan<- app.Event) error {
-	for _, event := range s.events {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case events <- event:
-		}
-	}
-	return nil
-}
-
 func TestSettingsPersistAcrossAppRestarts(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	firstPlayer := player.NewFake()
-	first := app.New(firstPlayer, library.NewFake(), storage.NewFile(path), settingsInput{
+	first := app.New(firstPlayer, library.NewFake(), storage.NewFile(path), eventInput{
 		events: []app.Event{app.VolumeChanged{Delta: 20}, app.QuitRequested{}},
 	}, silentUI{})
 	if err := first.Run(ctx); err != nil {
@@ -99,7 +86,7 @@ func TestSettingsPersistAcrossAppRestarts(t *testing.T) {
 		t.Fatalf("first volume = %d, want 70", firstPlayer.Volume)
 	}
 	secondPlayer := player.NewFake()
-	second := app.New(secondPlayer, library.NewFake(), storage.NewFile(path), settingsInput{
+	second := app.New(secondPlayer, library.NewFake(), storage.NewFile(path), eventInput{
 		events: []app.Event{app.QuitRequested{}},
 	}, silentUI{})
 	if err := second.Run(ctx); err != nil {
@@ -108,19 +95,6 @@ func TestSettingsPersistAcrossAppRestarts(t *testing.T) {
 	if secondPlayer.Volume != 70 {
 		t.Fatalf("restored volume = %d, want 70", secondPlayer.Volume)
 	}
-}
-
-type burstInput struct{}
-
-func (burstInput) Run(ctx context.Context, events chan<- app.Event) error {
-	for _, event := range []app.Event{app.SelectPressed{}, app.Scroll{Delta: 1}, app.SelectPressed{}} {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case events <- event:
-		}
-	}
-	return nil
 }
 
 func (u *observingUI) Render(state app.AppState) error {
@@ -176,7 +150,9 @@ func TestRunWaitsForInputShutdown(t *testing.T) {
 func TestRunDrainsEventsWhenInputEnds(t *testing.T) {
 	ui := &observingUI{playing: make(chan struct{})}
 	fakePlayer := player.NewFake()
-	application := app.New(fakePlayer, library.NewFake(), storage.NewMemory(50), burstInput{}, ui)
+	application := app.New(fakePlayer, library.NewFake(), storage.NewMemory(50), eventInput{events: []app.Event{
+		app.SelectPressed{}, app.Scroll{Delta: 1}, app.SelectPressed{},
+	}}, ui)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	if err := application.Run(ctx); err != nil {
@@ -185,19 +161,6 @@ func TestRunDrainsEventsWhenInputEnds(t *testing.T) {
 	if !ui.seen || fakePlayer.Track.Title != "Digital Love" {
 		t.Fatalf("events were lost at input EOF: UI saw playing=%t, player track=%q", ui.seen, fakePlayer.Track.Title)
 	}
-}
-
-type sequenceInput struct{ events []app.Event }
-
-func (s sequenceInput) Run(ctx context.Context, events chan<- app.Event) error {
-	for _, event := range s.events {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case events <- event:
-		}
-	}
-	return nil
 }
 
 type recordingUI struct{ states []app.AppState }
@@ -252,7 +215,7 @@ func TestUpdateLibraryMenuRunsRefresh(t *testing.T) {
 					return tc.tracks, tc.refreshErr
 				},
 			}
-			application := app.New(player.NewFake(), lib, storage.NewMemory(50), sequenceInput{[]app.Event{
+			application := app.New(player.NewFake(), lib, storage.NewMemory(50), eventInput{events: []app.Event{
 				app.Scroll{Delta: 2}, app.SelectPressed{}, app.SelectPressed{},
 			}}, ui)
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -294,7 +257,7 @@ func TestUpdateLibraryCancellationStopsApp(t *testing.T) {
 		},
 	}
 	ui := &recordingUI{}
-	application := app.New(player.NewFake(), lib, storage.NewMemory(50), sequenceInput{[]app.Event{
+	application := app.New(player.NewFake(), lib, storage.NewMemory(50), eventInput{events: []app.Event{
 		app.Scroll{Delta: 2}, app.SelectPressed{}, app.SelectPressed{},
 	}}, ui)
 	if err := application.Run(ctx); err != nil {

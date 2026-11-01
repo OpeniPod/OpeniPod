@@ -38,7 +38,7 @@ func TestEqualizerPersistsAndAppliesAcrossAppRestarts(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
 			firstPlayer := player.NewFake()
-			first := app.New(firstPlayer, library.NewFake(), storage.NewFile(path), settingsInput{events: events}, silentUI{})
+			first := app.New(firstPlayer, library.NewFake(), storage.NewFile(path), eventInput{events: events}, silentUI{})
 			if err := first.Run(ctx); err != nil {
 				t.Fatal(err)
 			}
@@ -50,7 +50,7 @@ func TestEqualizerPersistsAndAppliesAcrossAppRestarts(t *testing.T) {
 				t.Fatalf("saved settings = %+v, %v", settings, err)
 			}
 			secondPlayer := player.NewFake()
-			second := app.New(secondPlayer, library.NewFake(), storage.NewFile(path), settingsInput{
+			second := app.New(secondPlayer, library.NewFake(), storage.NewFile(path), eventInput{
 				events: []app.Event{app.QuitRequested{}},
 			}, silentUI{})
 			if err := second.Run(ctx); err != nil {
@@ -96,7 +96,7 @@ func TestEqualizerPlayerErrorsHaveContextAndClosePlayer(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			sentinel := errors.New("equalizer unavailable")
 			p := &failingEqualizerPlayer{Fake: player.NewFake(), failOn: test.failOn, err: sentinel}
-			application := app.New(p, library.NewFake(), storage.NewMemory(50), settingsInput{events: []app.Event{
+			application := app.New(p, library.NewFake(), storage.NewMemory(50), eventInput{events: []app.Event{
 				app.Scroll{Delta: 2}, app.SelectPressed{}, app.Scroll{Delta: 1}, app.SelectPressed{},
 			}}, silentUI{})
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)

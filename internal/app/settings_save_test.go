@@ -129,7 +129,7 @@ func TestSettingsDoNotSaveUnchangedState(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			store := &recordingStorage{}
-			application := app.New(player.NewFake(), library.NewFake(), store, settingsInput{events: tc.events}, silentUI{})
+			application := app.New(player.NewFake(), library.NewFake(), store, eventInput{events: tc.events}, silentUI{})
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
 			if err := application.Run(ctx); err != nil {
@@ -165,7 +165,7 @@ func TestSettingsFlushOnShutdown(t *testing.T) {
 				return nil
 			})
 			input := inputFunc(func(ctx context.Context, events chan<- app.Event) error {
-				if err := (settingsInput{events: []app.Event{app.VolumeChanged{Delta: 10}, app.VolumeChanged{Delta: 10}}}).Run(ctx, events); err != nil {
+				if err := (eventInput{events: []app.Event{app.VolumeChanged{Delta: 10}, app.VolumeChanged{Delta: 10}}}).Run(ctx, events); err != nil {
 					return err
 				}
 				if mode == "cancel" || mode == "render error" {

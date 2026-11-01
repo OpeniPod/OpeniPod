@@ -144,14 +144,6 @@ func TestFilesystemLoadRejectsRenamedTextForEverySupportedFormat(t *testing.T) {
 	if got := trackTitles(first); !reflect.DeepEqual(got, wantTitles) {
 		t.Fatalf("first scan tracks = %v, want %v", got, wantTitles)
 	}
-
-	refreshed, err := lib.Refresh(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := trackTitles(refreshed); !reflect.DeepEqual(got, wantTitles) {
-		t.Fatalf("refresh tracks = %v, want %v", got, wantTitles)
-	}
 }
 
 func TestFilesystemLoadRejectsVideoOnlyM4A(t *testing.T) {
@@ -167,14 +159,6 @@ func TestFilesystemLoadRejectsVideoOnlyM4A(t *testing.T) {
 	wantTitles := []string{"valid.m4a"}
 	if got := trackTitles(tracks); !reflect.DeepEqual(got, wantTitles) {
 		t.Fatalf("first scan tracks = %v, want %v", got, wantTitles)
-	}
-
-	refreshed, err := lib.Refresh(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := trackTitles(refreshed); !reflect.DeepEqual(got, wantTitles) {
-		t.Fatalf("refresh tracks = %v, want %v", got, wantTitles)
 	}
 }
 

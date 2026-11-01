@@ -26,8 +26,5 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Check formatting, tests, races, and vet
-        run: make check
-
-      - name: Build
-        run: go build ./...
+      - name: Check and build
+        run: make all
