@@ -1,13 +1,7 @@
-.PHONY: all run preview screenshots test race vet fmt check
+.PHONY: all run test race vet fmt check
 
 run:
 	go run ./cmd/player
-
-preview:
-	go run ./cmd/preview
-
-screenshots:
-	go run ./cmd/render-samples
 
 test:
 	go test ./...

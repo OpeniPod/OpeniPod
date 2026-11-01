@@ -13,7 +13,7 @@ import (
 )
 
 // Open uses a private append-only file by default. Journal mode requires stderr
-// to be redirected to journald; it never redirects the terminal UI's stdout.
+// to be redirected to journald; the graphical UI uses a separate window.
 func Open(target, path, level string, stderr io.Writer) (*slog.Logger, func() error, error) {
 	var minimum slog.Level
 	if err := minimum.UnmarshalText([]byte(strings.ToUpper(level))); err != nil {

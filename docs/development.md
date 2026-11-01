@@ -1,10 +1,24 @@
 # Development guide
 
-Start with `cmd/player/main.go`: it chooses concrete adapters and calls `App.Run`. Application decisions live in `internal/app`. `state.go` defines what the app knows, `event.go` defines messages into the app, `reducer.go` defines state transitions and commands, and `app.go` owns the loop and executes side effects. `internal/music` holds shared music data.
+Start with `cmd/player/main.go`: it chooses concrete adapters, opens the native
+window, and calls `App.Run`. Application decisions live in `internal/app`.
+`state.go` defines what the app knows, `event.go` defines messages into the
+app, `reducer.go` defines state transitions and commands, and `app.go` owns
+the loop and executes side effects. `internal/music` holds shared music data.
 
-To add an event, define a concrete type in `event.go`, add its `isEvent` method, handle it in `Reduce`, and add a focused transition test. Map a key or hardware signal to that event in its input adapter. If the event requires I/O, have the reducer return a small command and execute it in `App`; keep I/O out of the reducer.
+To add an event, define a concrete type in `event.go`, add its `isEvent`
+method, handle it in `Reduce`, and add a focused transition test. Map a
+keyboard key in `internal/desktop/keys.go` or a hardware signal in
+`internal/input` to that event. If the event requires I/O, have the reducer
+return a small command and execute it in `App`; keep I/O out of the reducer.
 
-To add a backend, implement the consumer interface in `internal/app/app.go` and wire the implementation in `cmd/player/main.go`. Keep interfaces small and based on current needs. A real player sends typed player events back to App. A UI backend implements `Render(AppState)` and should only display the supplied state. Business logic belongs in the reducer and App loop, never in UI, input, or hardware code. Avoid globals and direct adapter-to-adapter calls.
+To add a backend, implement the consumer interface in `internal/app/app.go`
+and wire the implementation in `cmd/player/main.go`. Keep interfaces small
+and based on current needs. A real player sends typed player events back to
+App. A renderer implements `Render(AppState)` and should only display the
+supplied state. Business logic belongs in the reducer and App loop, never in
+UI, input, or hardware code. Avoid globals and direct adapter-to-adapter
+calls.
 
 The storage package also provides `storage.NewFile(path)`, implementing the same
 `app.Storage` interface as `Memory`. It reads and writes the complete
@@ -27,8 +41,7 @@ can lose changes still waiting for the timer; save errors are returned.
 Useful commands:
 
 ```sh
-make run      # terminal player
-make preview  # interactive graphical window with real audio
+make run      # graphical player
 make fmt      # rewrite Go files with gofmt
 make test     # unit and integration tests
 make race     # race detector
@@ -42,9 +55,12 @@ running `make fmt` to format them.
 
 Read [architecture](architecture.md) before changing package boundaries, state ownership, or event flow. Keep a branch and PR focused; see [contributing](../CONTRIBUTING.md).
 
-The graphical entry point is `cmd/preview/main.go`. `internal/desktop` wraps
-Shiny's native window and implements both App input and renderer interfaces.
-It uses `ui.Display` for every frame; application logic stays in App. Its
-keyboard mapping lives in `internal/desktop/keys.go`. Run with `--music-dir`
-to select real music; the default is `~/Music`. On Linux, launch from an X11
-session (or XWayland), with the same audio build dependencies as `cmd/player`.
+`make run` launches the graphical player through the sole entry point,
+`cmd/player`. `internal/desktop` wraps Shiny's native window and implements
+both App input and renderer interfaces. It uses `ui.Display` for every frame;
+application logic stays in App. Its keyboard mapping lives in
+`internal/desktop/keys.go`. The filesystem library defaults to `~/Music` and
+can be pointed elsewhere with `--music-dir`. On Linux, launch from an X11
+session or Wayland with XWayland, with the same audio build dependencies
+described in the README. `--scale` sets the initial window scale from 1 to 4
+(default 2).

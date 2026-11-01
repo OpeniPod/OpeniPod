@@ -2,9 +2,9 @@
 
 OpeniPod is a team learning project for a standalone music player inspired by the iPod. The intended device uses an Orange Pi Zero, a small display, physical controls, local music, and Linux. The desktop app has a working audio player; hardware support is not yet implemented.
 
-The desktop app provides a terminal UI and an interactive graphical preview,
-keyboard input, a filesystem music library, real MP3 playback, and file-backed
-volume and equalizer settings. Fake adapters remain available for tests.
+The desktop app provides an interactive graphical window, keyboard input, a
+filesystem music library, real MP3 playback, and file-backed volume and
+equalizer settings. Fake adapters remain available for tests.
 
 ## Build and run
 
@@ -23,16 +23,21 @@ Then build or run:
 ```sh
 go build ./cmd/player
 go run ./cmd/player
-# or
-make run
 ```
 
-`--platform desktop` is the default and only supported platform. An unsupported value produces an error. Run in a terminal for immediate single-key input. Piped input also works for smoke tests.
+`make run` starts the same graphical player. `--platform desktop` is the
+default and only supported platform; an unsupported value produces an error.
+On Linux, run from an X11 desktop session or a Wayland session with XWayland.
+The window uses Shiny's X11 driver and needs no additional native GUI
+development packages. The initial size is 480×640; `--scale` accepts 1..4 and
+defaults to 2. Resizing keeps the 240×320 display's aspect ratio and adds black
+borders when needed.
 
-To load music from a directory and its subdirectories:
+To load music from a directory and its subdirectories, or to set the initial
+window scale:
 
 ```sh
-go run ./cmd/player --music-dir "/path/to/Music"
+go run ./cmd/player --music-dir "/path/to/Music" --scale 2
 ```
 
 The filesystem library stores a versioned, root-specific index at
@@ -75,8 +80,8 @@ root-mismatched, or incompatible index is a visible startup error; the
 application does not silently rescan it. Choose Update Library to recover.
 Refresh failures retain the current in-memory track list and saved index.
 
-Without `--music-dir` (or with an empty value), the four sample tracks remain
-available for development.
+Without `--music-dir` (or with an empty value), the library uses `~/Music`.
+If that directory is missing or unreadable, the UI shows a library error.
 
 Settings are restored on startup and saved 500 ms after the last change.
 Pending changes are saved before shutdown. On Linux the default
@@ -104,49 +109,31 @@ Diagnostics default to a separate JSON file at
 detail, and `--log-file` to choose a development file. Linux journal setup,
 retention and viewing commands are in [diagnostic logging](docs/logging.md).
 
-## Display previews
+## Desktop window
 
-Run the existing 240×320 renderer in an interactive desktop window:
+The player renders each application state to a 240×320 RGBA frame and displays
+it in the native window:
 
 ```sh
-make preview
+make run
 # Choose your music directory and initial window scale:
-go run ./cmd/preview --music-dir "/path/to/Music" --scale 2
+go run ./cmd/player --music-dir "/path/to/Music" --scale 2
 ```
 
-On Linux the window uses X11; run it from your graphical desktop session
-(`DISPLAY` must be set). Under Wayland it needs XWayland. It uses Shiny's Go
-X11 driver and needs no additional native GUI development packages on Linux.
-The initial size is 480×640 (scale 2); `--scale` accepts 1..4. Resizing keeps the
-original display's aspect ratio and adds black borders when necessary.
-
-The window uses the real audio player and filesystem library. The default
-music directory is `~/Music`; if it is missing, the UI shows a library error.
-Choose another directory with `--music-dir`. MP3 playback, manual library
-updates, volume, and equalizer use the same App as the terminal version.
-`--settings-file` works here too; by default both commands share settings.
-Avoid running both at the same time with the same settings file.
+The graphical player uses the real audio player and filesystem library.
+`--settings-file` selects the settings file; by default it uses the user config
+directory's `openipod/settings.json`.
 
 Focus the window and use the keys in the controls table below. Close the
 window, press `q`, or use Ctrl+C to quit and save pending settings. Mouse
 navigation and on-screen buttons are not implemented.
 
-The 240×320 display renderer uses an embedded font and can be tested without
-hardware. Generate PNG examples for each screen, an empty library, and error
-states with:
-
-```sh
-make screenshots
-```
-
-The images are written to `examples/screens/`.
-
 ## Controls
 
 Software processing of EC11 rotation and encoder, Back, and Play/Pause buttons
-is available separately from the keyboard backend. Tests supply signal levels
-and time; real GPIO is not connected yet. See [control signals](docs/controls.md)
-for the decoder policy and integration API.
+is available separately from desktop keyboard input. Tests supply signal
+levels and time; real GPIO is not connected yet. See
+[control signals](docs/controls.md) for the decoder policy and integration API.
 
 | Key | Action |
 | --- | --- |
@@ -161,9 +148,9 @@ for the decoder policy and integration API.
 | `q` | Quit |
 
 Open **Tracks** and choose a real MP3 from the filesystem library to play it
-and view its progress in **Now Playing**. The terminal command's sample library
-contains no audio files. Library updates run synchronously and replace the track
-list on success. Volume settings persist across restarts.
+and view its progress in **Now Playing**. Library updates run synchronously
+and replace the track list on success. Volume settings persist across
+restarts.
 
 ## Checks
 
@@ -179,12 +166,16 @@ make check
 ## Architecture
 
 ```text
-keyboard ──typed events──> App loop ──AppState──> terminal UI
-                            │  ▲
-                            │  └──player events
-                            ├──Library.Load()
-                            ├──Player commands
-                            └──Storage settings
+native keyboard ──> desktop input ──typed events──> App loop ──AppState──> renderer ──> window
+                                                     │  ▲
+                                                     │  └──player events
+                                                     ├──Library.Load()
+                                                     ├──Player commands
+                                                     └──Storage settings
 ```
 
-`internal/app` owns mutable state and chooses side effects. Adapters do not edit it. The composition root is `cmd/player/main.go`. See [architecture](docs/architecture.md), [development](docs/development.md), [testing](docs/testing.md), [diagnostic logging](docs/logging.md), and [contributing](CONTRIBUTING.md).
+`internal/app` owns mutable state and chooses side effects. Adapters do not
+edit it. The only composition root is `cmd/player/main.go`. See
+[architecture](docs/architecture.md), [development](docs/development.md),
+[testing](docs/testing.md), [diagnostic logging](docs/logging.md), and
+[contributing](CONTRIBUTING.md).

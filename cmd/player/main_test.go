@@ -2,11 +2,15 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -14,349 +18,442 @@ import (
 	"github.com/OpeniPod/OpeniPod/internal/player"
 )
 
-func TestRunSelectsLibrary(t *testing.T) {
-	root := t.TempDir()
-	if err := os.Mkdir(filepath.Join(root, "Album"), 0o755); err != nil {
+func TestParseOptionsDefaultsAndFlags(t *testing.T) {
+	home := t.TempDir()
+	config := filepath.Join(t.TempDir(), "config")
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", config)
+
+	got, err := parseOptions(nil, io.Discard)
+	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"01.flac", "Album/02.MP3", "Daft Punk - Get Lucky (feat. Pharrell Williams).mp3", "notes.txt"} {
-		writePlayerTestFile(t, root, name)
+	if got.musicDir != filepath.Join(home, "Music") {
+		t.Errorf("default musicDir = %q, want %q", got.musicDir, filepath.Join(home, "Music"))
+	}
+	if got.settingsFile != filepath.Join(config, "openipod", "settings.json") {
+		t.Errorf("default settingsFile = %q, want %q", got.settingsFile, filepath.Join(config, "openipod", "settings.json"))
+	}
+	if got.platform != "desktop" || got.logTarget != "file" || got.logLevel != "info" || got.scale != 2 {
+		t.Errorf("default platform/logging/scale = %+v", got)
+	}
+	if _, err := parseOptions([]string{"--help"}, io.Discard); !errors.Is(err, flag.ErrHelp) {
+		t.Errorf("parseOptions(--help) error = %v, want flag.ErrHelp", err)
 	}
 
-	for _, tc := range []struct {
-		name    string
-		args    []string
-		want    []string
-		missing []string
-	}{
-		{
-			name:    "sample library by default",
-			want:    []string{"> One More Time\n", "  Digital Love\n", "Playing"},
-			missing: []string{"01.flac", "02.MP3"},
-		},
-		{
-			name:    "filesystem library from flag",
-			args:    []string{"--music-dir", root},
-			want:    []string{"> 01.flac\n", "  02.MP3\n", "  Daft Punk - Get Lucky (feat. Pharrell Williams).mp3\n", "Playing"},
-			missing: []string{"One More Time", "Digital Love", "notes.txt"},
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			output := runWithInput(t, tc.args, "\n\n")
-			for _, want := range tc.want {
-				if !strings.Contains(output, want) {
-					t.Errorf("output does not contain %q:\n%s", want, output)
-				}
+	got, err = parseOptions([]string{
+		"--music-dir", "/tmp/music",
+		"--settings-file", "/tmp/preferences.json",
+		"--log-target", "journal",
+		"--log-file", "/tmp/openipod.log",
+		"--log-level", "debug",
+		"--platform", "desktop",
+		"--scale", "4",
+	}, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.musicDir != "/tmp/music" || got.settingsFile != "/tmp/preferences.json" ||
+		got.logTarget != "journal" || got.logFile != "/tmp/openipod.log" ||
+		got.logLevel != "debug" || got.platform != "desktop" || got.scale != 4 {
+		t.Errorf("explicit options = %+v", got)
+	}
+}
+
+func TestParseOptionsScaleBoundariesAndRange(t *testing.T) {
+	for _, scale := range []string{"1", "4"} {
+		t.Run("boundary "+scale, func(t *testing.T) {
+			got, err := parseOptions([]string{"--scale", scale}, io.Discard)
+			if err != nil {
+				t.Fatal(err)
 			}
-			for _, missing := range tc.missing {
-				if strings.Contains(output, missing) {
-					t.Errorf("output unexpectedly contains %q:\n%s", missing, output)
-				}
+			want := 1
+			if scale == "4" {
+				want = 4
+			}
+			if got.scale != want {
+				t.Errorf("scale = %d, want %d", got.scale, want)
+			}
+		})
+	}
+	for _, scale := range []string{"0", "5"} {
+		t.Run("out of range "+scale, func(t *testing.T) {
+			_, err := parseOptions([]string{"--scale", scale}, io.Discard)
+			if err == nil || !strings.Contains(err.Error(), "scale must be between 1 and 4") {
+				t.Errorf("parseOptions() error = %v, want scale range error", err)
 			}
 		})
 	}
 }
 
-func TestRunEmptyMusicDirectory(t *testing.T) {
-	output := runWithInput(t, []string{"--music-dir", t.TempDir()}, "\n")
-	if !strings.Contains(output, "No tracks loaded") || strings.Contains(output, "Error:") {
-		t.Fatalf("expected an empty library without an error:\n%s", output)
+func TestRunDoesNotLaunchForHelpOrInvalidOptions(t *testing.T) {
+	for _, args := range [][]string{
+		{"--help"},
+		{"--log-level", "verbose"},
+		{"--log-target", "console"},
+		{"--log-target", "journal", "--log-file", "/tmp/openipod.log"},
+		{"--platform", "unknown"},
+		{"--scale", "5"},
+		{"unexpected"},
+	} {
+		var stderr bytes.Buffer
+		launchCalls := 0
+		err := run(args, &stderr, func(context.Context, options, *slog.Logger) error {
+			launchCalls++
+			return nil
+		})
+		if launchCalls != 0 {
+			t.Errorf("run(%v) launched %d times", args, launchCalls)
+		}
+		if args[0] == "--help" {
+			if err != nil {
+				t.Errorf("run(--help) error = %v, want nil", err)
+			}
+		} else if err == nil {
+			t.Errorf("run(%v) error = nil, want validation error", args)
+		}
 	}
 }
 
-func TestRunShowsLibraryError(t *testing.T) {
-	root := filepath.Join(t.TempDir(), "missing")
-	output := runWithInput(t, []string{"--music-dir", root}, "\n")
-	if !strings.Contains(output, "Error: load library:") || !strings.Contains(output, root) {
-		t.Fatalf("expected the library error and directory path:\n%s", output)
+func TestRunDiscoversAndSortsMusicDirectoryTracks(t *testing.T) {
+	musicDir := t.TempDir()
+	writePlayerTestFile(t, musicDir, "02 Second Song.mp3")
+	writePlayerTestFile(t, musicDir, "01 First Song.mp3")
+
+	run := runPlayer(t, []string{"--music-dir", musicDir}, eventInput{})
+	if run.err != nil {
+		t.Fatal(run.err)
 	}
-	if !strings.Contains(output, "No tracks loaded") || strings.Contains(output, "One More Time") {
-		t.Fatalf("expected an empty library after a load failure:\n%s", output)
+	tracks := lastState(t, run.states).Library.Tracks
+	if len(tracks) != 2 || tracks[0].Title != "01 First Song.mp3" || tracks[1].Title != "02 Second Song.mp3" {
+		t.Fatalf("discovered tracks = %+v, want files in sorted order", tracks)
+	}
+	if run.opts.musicDir != musicDir {
+		t.Errorf("run musicDir = %q, want %q", run.opts.musicDir, musicDir)
 	}
 }
 
-func TestRunUsesSavedLibraryUntilMenuUpdate(t *testing.T) {
-	root := t.TempDir()
-	oldPath := filepath.Join(root, "old.mp3")
-	writePlayerTestFile(t, root, filepath.Base(oldPath))
-	args := []string{"--music-dir", root}
-	first := runWithInput(t, args, "\n")
-	if !strings.Contains(first, "> old.mp3\n") {
-		t.Fatalf("first run did not discover music:\n%s", first)
+func TestRunHandlesEmptyAndMissingMusicDirectories(t *testing.T) {
+	emptyDir := t.TempDir()
+	empty := runPlayer(t, []string{"--music-dir", emptyDir}, eventInput{})
+	if empty.err != nil {
+		t.Fatal(empty.err)
 	}
-	if strings.Contains(first, "Update Library") {
-		t.Fatalf("first run showed Update Library on Home:\n%s", first)
+	if state := lastState(t, empty.states); len(state.Library.Tracks) != 0 || state.Error != "" {
+		t.Fatalf("empty library state = %+v, want no tracks and no error", state)
+	}
+
+	missingDir := filepath.Join(t.TempDir(), "missing")
+	missing := runPlayer(t, []string{"--music-dir", missingDir}, eventInput{})
+	if missing.err != nil {
+		t.Fatal(missing.err)
+	}
+	if state := lastState(t, missing.states); len(state.Library.Tracks) != 0 || !strings.Contains(state.Error, missingDir) {
+		t.Fatalf("missing library state = %+v, want empty tracks and path error", state)
+	}
+}
+
+func TestRunUsesSavedLibraryUntilMenuRefresh(t *testing.T) {
+	musicDir := t.TempDir()
+	oldPath := filepath.Join(musicDir, "old.mp3")
+	writePlayerTestFile(t, musicDir, filepath.Base(oldPath))
+	args := []string{"--music-dir", musicDir}
+
+	first := runPlayer(t, args, eventInput{})
+	if first.err != nil {
+		t.Fatal(first.err)
+	}
+	if got := trackTitles(lastState(t, first.states)); !slices.Equal(got, []string{"old.mp3"}) {
+		t.Fatalf("first library = %v, want [old.mp3]", got)
 	}
 	if err := os.Remove(oldPath); err != nil {
 		t.Fatal(err)
 	}
-	writePlayerTestFile(t, root, "new.flac")
-	second := runWithInput(t, args, "\n")
-	if !strings.Contains(second, "> old.mp3\n") || strings.Contains(second, "new.flac") {
-		t.Fatalf("second run did not use the saved library:\n%s", second)
+	writePlayerTestFile(t, musicDir, "new.mp3")
+
+	second := runPlayer(t, args, eventInput{})
+	if second.err != nil {
+		t.Fatal(second.err)
+	}
+	if got := trackTitles(lastState(t, second.states)); !slices.Equal(got, []string{"old.mp3"}) {
+		t.Fatalf("cached library = %v, want saved [old.mp3]", got)
 	}
 
-	// Enter Settings, select Update Library, then return to Tracks.
-	updated := runWithInput(t, args, "jj\n\nbkk\n")
-	if !strings.Contains(updated, "> Update Library\n") || strings.Contains(updated, "Updating library...") || !strings.Contains(updated, "> new.flac\n") || strings.Contains(updated, "old.mp3") || strings.Contains(updated, "Error:") {
-		t.Fatalf("menu update did not show the new library:\n%s", updated)
+	refresh := runPlayer(t, args, eventInput{events: []app.Event{
+		app.Scroll{Delta: 2},
+		app.SelectPressed{},
+		app.SelectPressed{},
+		app.BackPressed{},
+		app.SelectPressed{},
+	}})
+	if refresh.err != nil {
+		t.Fatal(refresh.err)
 	}
-	third := runWithInput(t, args, "\n")
-	if !strings.Contains(third, "> new.flac\n") || strings.Contains(third, "old.mp3") {
-		t.Fatalf("menu update did not persist across runs:\n%s", third)
+	if state := lastState(t, refresh.states); !slices.Equal(trackTitles(state), []string{"new.mp3"}) || state.Error != "" {
+		t.Fatalf("refreshed library state = %+v, want new.mp3 without an error", state)
+	}
+	third := runPlayer(t, args, eventInput{})
+	if third.err != nil {
+		t.Fatal(third.err)
+	}
+	if got := trackTitles(lastState(t, third.states)); !slices.Equal(got, []string{"new.mp3"}) {
+		t.Fatalf("persisted refreshed library = %v, want [new.mp3]", got)
 	}
 }
 
-func TestRunMenuUpdateRecoversInvalidIndex(t *testing.T) {
-	root := t.TempDir()
-	writePlayerTestFile(t, root, "track.mp3")
-	if err := os.WriteFile(filepath.Join(root, ".openipod-library.json"), []byte("invalid JSON"), 0o600); err != nil {
+func TestRunMenuRefreshRecoversInvalidLibraryIndex(t *testing.T) {
+	musicDir := t.TempDir()
+	writePlayerTestFile(t, musicDir, "track.mp3")
+	if err := os.WriteFile(filepath.Join(musicDir, ".openipod-library.json"), []byte("invalid JSON"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	output := runWithInput(t, []string{"--music-dir", root}, "jj\n\nbkk\n")
-	if !strings.Contains(output, "Error: load library:") {
-		t.Fatalf("invalid index did not show a startup error:\n%s", output)
+
+	got := runPlayer(t, []string{"--music-dir", musicDir, "--log-level", "debug"}, eventInput{events: []app.Event{
+		app.Scroll{Delta: 2},
+		app.SelectPressed{},
+		app.SelectPressed{},
+		app.BackPressed{},
+		app.SelectPressed{},
+	}})
+	if got.err != nil {
+		t.Fatal(got.err)
 	}
-	lastView := output[strings.LastIndex(output, "\x1b[H\x1b[2J"):]
-	if !strings.Contains(lastView, "> track.mp3\n") || strings.Contains(lastView, "Error:") {
-		t.Fatalf("menu update did not recover the library:\n%s", lastView)
+	if state := lastState(t, got.states); !slices.Equal(trackTitles(state), []string{"track.mp3"}) || state.Error != "" {
+		t.Fatalf("recovered library state = %+v, want track.mp3 without an error", state)
+	}
+	counts := make(map[string]int)
+	for _, record := range readJSONLog(t, got.logFile) {
+		counts[record["msg"].(string)]++
+		if record["level"] == "ERROR" {
+			t.Errorf("recoverable index failure became fatal: %v", record)
+		}
+	}
+	if counts["library load failed"] != 1 || counts["library loaded"] != 1 {
+		t.Errorf("index recovery diagnostics = %v, want one warning and one successful load", counts)
 	}
 }
 
-func TestRunPersistsEqualizerPresetAcrossRuns(t *testing.T) {
-	settingsPath := filepath.Join(t.TempDir(), "settings.json")
-	args := []string{"--settings-file", settingsPath}
+func TestRunPersistsEqualizerAndRestoresVolume(t *testing.T) {
+	settingsFile := filepath.Join(t.TempDir(), "settings.json")
+	args := []string{"--settings-file", settingsFile, "--music-dir", t.TempDir()}
+	for i, preset := range []app.EqualizerPreset{app.EqualizerBassBoost, app.EqualizerVocal, app.EqualizerOff} {
+		events := []app.Event{
+			app.Scroll{Delta: 2},
+			app.SelectPressed{},
+			app.Scroll{Delta: 1},
+			app.SelectPressed{},
+		}
+		if i == 0 {
+			events = append(events, app.VolumeChanged{Delta: 20})
+		}
+		events = append(events, app.QuitRequested{})
+		got := runPlayer(t, args, eventInput{events: events})
+		if got.err != nil {
+			t.Fatal(got.err)
+		}
+		if got.audio.Equalizer != preset || got.audio.Volume != 70 {
+			t.Fatalf("player settings after selecting %q = volume %d, equalizer %q", preset, got.audio.Volume, got.audio.Equalizer)
+		}
 
-	bassBoost := runWithInput(t, args, "jj\nj\n")
-	if !strings.Contains(bassBoost, "> Equalizer: Bass boost\n") {
-		t.Fatalf("selecting the equalizer did not choose Bass boost:\n%s", bassBoost)
-	}
-	stored, err := os.ReadFile(settingsPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(stored), `"equalizer":"bass_boost"`) {
-		t.Fatalf("settings file did not store Bass boost: %s", stored)
-	}
-
-	restored := runWithInput(t, args, "jj\n")
-	if !strings.Contains(restored, "Equalizer: Bass boost\n") {
-		t.Fatalf("next run did not restore Bass boost:\n%s", restored)
-	}
-
-	vocal := runWithInput(t, args, "jj\nj\n")
-	if !strings.Contains(vocal, "> Equalizer: Vocal\n") {
-		t.Fatalf("cycling from Bass boost did not choose Vocal:\n%s", vocal)
-	}
-
-	off := runWithInput(t, args, "jj\nj\n")
-	if !strings.Contains(off, "> Equalizer: Off\n") {
-		t.Fatalf("cycling from Vocal did not choose Off:\n%s", off)
-	}
-}
-
-func runWithInput(t *testing.T, args []string, keys string) string {
-	t.Helper()
-	testDir := t.TempDir()
-	args = append([]string{
-		"--log-file", filepath.Join(testDir, "player.log"),
-	}, args...)
-	in, writer, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = in.Close() })
-	t.Cleanup(func() { _ = writer.Close() })
-	if _, err := writer.WriteString(keys); err != nil {
-		t.Fatal(err)
-	}
-	if err := writer.Close(); err != nil {
-		t.Fatal(err)
-	}
-	var out, stderr bytes.Buffer
-	if err := runWith(t, args, in, &out, &stderr); err != nil {
-		t.Fatal(err)
-	}
-	if stderr.Len() != 0 {
-		t.Fatalf("diagnostics reached stderr in file mode: %s", &stderr)
-	}
-	return out.String()
-}
-
-func runWith(t *testing.T, args []string, stdin *os.File, stdout, stderr io.Writer) error {
-	t.Helper()
-	testDir := t.TempDir()
-	args = append([]string{
-		"--settings-file", filepath.Join(testDir, "settings.json"),
-	}, args...)
-	return runWithPlayerFactory(args, stdin, stdout, stderr, func() (app.Player, error) {
-		return player.NewFake(), nil
-	})
-}
-
-func writePlayerTestFile(t *testing.T, root, name string) {
-	t.Helper()
-	data := []byte("fixture")
-	extension := strings.ToLower(filepath.Ext(name))
-	if isPlayerFixtureExtension(extension) {
-		var err error
-		data, err = os.ReadFile(filepath.Join("..", "..", "internal", "library", "testdata", "valid"+extension))
+		settings, err := os.ReadFile(settingsFile)
 		if err != nil {
 			t.Fatal(err)
 		}
-	}
-	path := filepath.Join(root, name)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func isPlayerFixtureExtension(extension string) bool {
-	switch extension {
-	case ".mp3", ".flac", ".wav", ".ogg", ".m4a", ".aac":
-		return true
-	default:
-		return false
-	}
-}
-
-func TestRunFileLoggingKeepsUISeparate(t *testing.T) {
-	stdin, err := os.CreateTemp(t.TempDir(), "input")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer stdin.Close()
-	if _, err := stdin.WriteString("\n\n"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := stdin.Seek(0, 0); err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(t.TempDir(), "player.log")
-	var stdout, stderr bytes.Buffer
-	if err := runWith(t, []string{"--log-file", path, "--log-level", "debug"}, stdin, &stdout, &stderr); err != nil {
-		t.Fatal(err)
-	}
-	if stderr.Len() != 0 || strings.Contains(stdout.String(), "application started") {
-		t.Fatalf("logs reached terminal output: stderr=%s stdout=%s", &stderr, &stdout)
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Contains(data, []byte("playback started")) || !bytes.Contains(data, []byte("\"level\":\"DEBUG\"")) {
-		t.Fatalf("missing runtime diagnostics: %s", data)
-	}
-}
-
-func TestFilesystemLibraryDiagnostics(t *testing.T) {
-	for _, recoverIndex := range []bool{false, true} {
-		name := "startup"
-		if recoverIndex {
-			name = "menu refresh after invalid index"
+		var stored map[string]any
+		if err := json.Unmarshal(settings, &stored); err != nil {
+			t.Fatal(err)
 		}
-		t.Run(name, func(t *testing.T) {
-			root := t.TempDir()
-			writePlayerTestFile(t, root, "track.mp3")
-			keys := "\n\n"
-			if recoverIndex {
-				if err := os.WriteFile(filepath.Join(root, ".openipod-library.json"), []byte("invalid JSON"), 0o600); err != nil {
-					t.Fatal(err)
-				}
-				keys = "jj\n\nbkk\n\n"
-			}
-			path := filepath.Join(t.TempDir(), "player.log")
-			output := runWithInput(t, []string{"--music-dir", root, "--log-file", path}, keys)
-			if !strings.Contains(output, "Playing") || strings.Contains(output, "application started") {
-				t.Fatalf("filesystem playback or UI/log separation failed: %s", output)
-			}
-			data, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			decoder := json.NewDecoder(bytes.NewReader(data))
-			counts := make(map[string]int)
-			for decoder.More() {
-				var record map[string]any
-				if err := decoder.Decode(&record); err != nil {
-					t.Fatal(err)
-				}
-				counts[record["msg"].(string)]++
-				if record["level"] == "ERROR" {
-					t.Fatalf("recoverable library failure became fatal: %v", record)
-				}
-				if record["msg"] == "library loaded" && record["track_count"] != float64(1) {
-					t.Fatalf("missing filesystem track count: %v", record)
-				}
-				if record["msg"] == "playback started" {
-					if id, ok := record["track_id"].(string); !ok || id == "" {
-						t.Fatalf("missing filesystem track ID: %v", record)
-					}
-				}
-			}
-			wantFailures := 0
-			if recoverIndex {
-				wantFailures = 1
-			}
-			if counts["library loaded"] != 1 || counts["library load failed"] != wantFailures || counts["playback started"] != 1 {
-				t.Fatalf("missing or duplicate filesystem diagnostics: %v", counts)
-			}
-		})
+		storedPreset := stored["equalizer"]
+		if preset == app.EqualizerOff && storedPreset == nil {
+			storedPreset = string(app.EqualizerOff)
+		}
+		if storedPreset != string(preset) || stored["volume"] != float64(70) {
+			t.Fatalf("stored settings = %v, want equalizer %q at volume 70", stored, preset)
+		}
+	}
+
+	restored := runPlayer(t, args, eventInput{})
+	if restored.err != nil {
+		t.Fatal(restored.err)
+	}
+	if restored.audio.Equalizer != app.EqualizerOff || restored.audio.Volume != 70 {
+		t.Fatalf("restored player settings = volume %d, equalizer %q", restored.audio.Volume, restored.audio.Equalizer)
 	}
 }
 
-func TestRunJournalFailureIsAlreadyRecorded(t *testing.T) {
-	stdin, err := os.Open(os.DevNull)
-	if err != nil {
-		t.Fatal(err)
+func TestRunFileLoggingRecordsFilesystemPlayback(t *testing.T) {
+	musicDir := t.TempDir()
+	writePlayerTestFile(t, musicDir, "track.mp3")
+	got := runPlayer(t, []string{"--music-dir", musicDir, "--log-level", "debug"}, eventInput{events: []app.Event{
+		app.SelectPressed{},
+		app.SelectPressed{},
+	}})
+	if got.err != nil {
+		t.Fatal(got.err)
 	}
-	stdin.Close() // Force a real keyboard-adapter failure.
-	var stdout, stderr bytes.Buffer
-	err = runWith(t, []string{"--log-target", "journal"}, stdin, &stdout, &stderr)
+	if got.stderr.Len() != 0 {
+		t.Fatalf("file logging wrote diagnostics to stderr: %s", &got.stderr)
+	}
+	if state := lastState(t, got.states); state.Screen != app.ScreenNowPlaying || state.Player.Status != app.StatusPlaying {
+		t.Fatalf("playback state = %+v, want active track", state)
+	}
+
+	counts := make(map[string]int)
+	for _, record := range readJSONLog(t, got.logFile) {
+		message, _ := record["msg"].(string)
+		counts[message]++
+		if message == "library loaded" && record["track_count"] != float64(1) {
+			t.Errorf("library loaded record = %v, want one track", record)
+		}
+		if message == "playback started" {
+			if trackID, ok := record["track_id"].(string); !ok || trackID == "" {
+				t.Errorf("playback started record has no track ID: %v", record)
+			}
+		}
+		if record["level"] == "ERROR" {
+			t.Errorf("successful playback logged a fatal error: %v", record)
+		}
+	}
+	if counts["application started"] != 1 || counts["library loaded"] != 1 || counts["playback started"] != 1 {
+		t.Fatalf("filesystem diagnostics = %v", counts)
+	}
+}
+
+func TestRunJournalLogsInputFailureOnce(t *testing.T) {
+	inputErr := errors.New("input adapter failed")
+	got := runPlayer(t, []string{"--music-dir", t.TempDir(), "--log-target", "journal", "--log-file", ""}, eventInput{err: inputErr})
 	var recorded *loggedError
-	if !errors.As(err, &recorded) {
-		t.Fatalf("runtime failure not marked as logged: %v", err)
+	if !errors.As(got.err, &recorded) || !errors.Is(got.err, inputErr) {
+		t.Fatalf("runtime failure error = %v, want loggedError", got.err)
 	}
-	count := 0
-	for _, line := range strings.Split(strings.TrimSpace(stderr.String()), "\n") {
-		if len(line) < 3 {
-			t.Fatalf("invalid journal output: %q", line)
+
+	fatalCount := 0
+	for _, line := range strings.Split(strings.TrimSpace(got.stderr.String()), "\n") {
+		if len(line) < 4 {
+			t.Fatalf("invalid journal record: %q", line)
 		}
 		var record map[string]any
 		if err := json.Unmarshal([]byte(line[3:]), &record); err != nil {
 			t.Fatal(err)
 		}
 		if record["level"] == "ERROR" {
-			count++
+			fatalCount++
 			if line[:3] != "<3>" || record["component"] != "input" || record["operation"] != "read" {
-				t.Fatalf("wrong journal error: %s", line)
+				t.Errorf("unexpected journal error record: %q", line)
 			}
 		}
 	}
-	if count != 1 || strings.Contains(stdout.String(), "operation failed") {
-		t.Fatalf("error duplicated or leaked to UI: %s", &stderr)
+	if fatalCount != 1 {
+		t.Fatalf("journal fatal record count = %d, want one; stderr=%s", fatalCount, &got.stderr)
 	}
 }
 
-func TestHelpAndBadConfigurationDoNotStartUI(t *testing.T) {
-	for _, args := range [][]string{
-		{"--help"}, {"--log-level", "verbose"}, {"--log-target", "console"},
-		{"--platform", "unknown"}, {"unexpected"},
-	} {
-		var stdout, stderr bytes.Buffer
-		err := runWith(t, args, nil, &stdout, &stderr)
-		if args[0] == "--help" {
-			if err != nil || !strings.Contains(stderr.String(), "log-level") {
-				t.Fatalf("help output: %v, %s", err, &stderr)
+type playerRun struct {
+	err     error
+	opts    options
+	audio   *player.Fake
+	states  []app.AppState
+	stderr  bytes.Buffer
+	logFile string
+}
+
+func runPlayer(t *testing.T, args []string, input eventInput) playerRun {
+	t.Helper()
+	testDir := t.TempDir()
+	settingsFile := filepath.Join(testDir, "settings.json")
+	logFile := filepath.Join(testDir, "player.log")
+	baseArgs := []string{
+		"--settings-file", settingsFile,
+		"--music-dir", filepath.Join(testDir, "Music"),
+		"--log-file", logFile,
+	}
+	args = append(baseArgs, args...)
+
+	result := playerRun{audio: player.NewFake(), logFile: logFile}
+	renderer := &stateRenderer{}
+	result.err = run(args, &result.stderr, func(ctx context.Context, opts options, logger *slog.Logger) error {
+		result.opts = opts
+		return runApplication(ctx, opts, result.audio, input, renderer, logger)
+	})
+	result.states = renderer.states
+	return result
+}
+
+type eventInput struct {
+	events []app.Event
+	err    error
+}
+
+func (in eventInput) Run(ctx context.Context, out chan<- app.Event) error {
+	for _, event := range in.events {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case out <- event:
+		}
+	}
+	return in.err
+}
+
+type stateRenderer struct {
+	states []app.AppState
+}
+
+func (r *stateRenderer) Render(state app.AppState) error {
+	r.states = append(r.states, state)
+	return nil
+}
+
+func lastState(t *testing.T, states []app.AppState) app.AppState {
+	t.Helper()
+	if len(states) == 0 {
+		t.Fatal("renderer received no states")
+	}
+	return states[len(states)-1]
+}
+
+func trackTitles(state app.AppState) []string {
+	titles := make([]string, len(state.Library.Tracks))
+	for i, track := range state.Library.Tracks {
+		titles[i] = track.Title
+	}
+	return titles
+}
+
+func writePlayerTestFile(t *testing.T, root, name string) {
+	t.Helper()
+	extension := strings.ToLower(filepath.Ext(name))
+	fixture, err := os.ReadFile(filepath.Join("..", "..", "internal", "library", "testdata", "valid"+extension))
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(root, name)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, fixture, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func readJSONLog(t *testing.T, path string) []map[string]any {
+	t.Helper()
+	file, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+
+	decoder := json.NewDecoder(file)
+	var records []map[string]any
+	for {
+		var record map[string]any
+		if err := decoder.Decode(&record); err != nil {
+			if errors.Is(err, io.EOF) {
+				return records
 			}
-		} else if err == nil {
-			t.Fatalf("bad configuration accepted: %v", args)
+			t.Fatal(err)
 		}
-		if stdout.Len() != 0 {
-			t.Fatalf("UI started before configuration validation: %v", args)
-		}
+		records = append(records, record)
 	}
 }

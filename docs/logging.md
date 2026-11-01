@@ -81,18 +81,20 @@ tail -f /tmp/openipod-development.log
 needed to change verbosity between launches. It does not hot-reload the level
 inside a running process. `--log-target` accepts `file` or `journal`.
 `--log-file` applies only to file mode. Configuration/open errors are reported
-before the UI starts. Runtime errors are in the selected log destination.
+before the native window starts. Runtime errors are in the selected log
+destination.
 
 The local development file has no built-in rotation. Use it for bounded
 development sessions, delete/archive it when no player process is writing,
 or apply external rotation. Use the managed journal below for unattended
 device runs. Existing file/directory permissions are not modified.
 
-## Linux journal without disrupting terminal UI
+## Linux journal with the desktop window
 
-Prerequisites: Linux, Go 1.23+, bash, `systemd-cat`, `journalctl`, and a
-running `systemd-journald`. Installing the client commands alone is not
-enough: the journal service must be active. Otherwise, use file mode.
+Prerequisites: Linux, Go 1.23+, bash, `systemd-cat`, `journalctl`, a running
+`systemd-journald`, an X11 or XWayland session, and a working audio device.
+Installing the client commands alone is not enough: the journal service must
+be active. Otherwise, use file mode.
 
 ```bash
 go build -o player ./cmd/player
@@ -100,10 +102,9 @@ go build -o player ./cmd/player
   2> >(systemd-cat --identifier=openipod --level-prefix=yes)
 ```
 
-Only stderr is redirected; stdin stays connected to the keyboard and stdout
-stays connected to the terminal UI. Do not wrap the entire player command in
-`systemd-cat`, since that would collect the UI too. Do not use journal mode
-with stderr still attached to the UI terminal.
+Only stderr is redirected to `systemd-cat`; the graphical window is displayed
+by the desktop session. Keep stderr connected to the journal collector so
+diagnostic records are not mixed into shell output.
 
 The journal handler emits one JSON line prefixed with a syslog priority:
 DEBUG `<7>`, INFO `<6>`, WARN `<4>`, ERROR `<3>`. `systemd-cat` consumes the
@@ -188,20 +189,19 @@ Run unit/integration checks on Linux:
 ```sh
 make check
 go build -o player ./cmd/player
-# Requires a running journald, Python 3 and journal read/sync permissions.
+# Requires journald, an X11/XWayland session, audio, Python 3 and journal
+# read/sync permissions.
 bash scripts/check-journal.sh ./player
-# Optional PTY check of SIGTERM and terminal restoration (Python 3).
-python3 scripts/check-terminal.py ./player
 ```
 
-The journal check uses a unique identifier, a FIFO collector and `journalctl
---sync` before reading. It verifies the real app-to-journal path, DEBUG/INFO
-priorities, playback events, and absence of diagnostics in UI output. A second
-run sends UI output to `/dev/full`, then checks exit status 1 and exactly one
-native ERROR record for the renderer failure. It does not alter journal settings
-or remove stored journal messages. Use `sudo` for the check on a dedicated test
-machine if journal permissions require it; do not run the everyday player as
-root just for logging.
+The journal check uses a unique identifier and a `systemd-cat` collector, then
+waits for startup records before sending SIGTERM to the graphical player. It
+checks the app-to-journal path, record priorities, and graceful stop record
+after `journalctl --sync`. A second run loads invalid settings JSON and checks
+exit status 1 and exactly one native ERROR record for `storage/load_settings`.
+The script does not alter journal settings or remove stored messages. Use `sudo` for the check on a dedicated test machine if journal
+permissions require it; do not run the everyday player as root just for
+logging.
 
 Go tests also cover recovery errors, fatal errors from each subsystem,
 cancellation, level filtering, file append/permissions, CLI wiring, and
@@ -214,11 +214,8 @@ real systemd-journald and systemd-cat. Journald ran as a standalone process
 with the example configuration; the checks did not exercise a full OS boot.
 
 - `make check`: formatting, all Go tests, race detector and vet passed.
-- `check-journal.sh`: real collection/query, DEBUG/INFO priority mapping,
-  terminal-output separation, failing exit status and exactly one native
-  ERROR record passed.
-- `check-terminal.py`: SIGTERM, restoration of terminal settings and separate
-  log/UI output passed.
+- The journal integration check verified real collection/query and
+  DEBUG/INFO priority mapping.
 - A saved journal message remained readable after stopping and restarting
   the journald process with persistent storage enabled.
 - Follow (`-f`), JSON export, disk-usage and kernel-query commands ran;
