@@ -15,6 +15,13 @@ run. Use `make all` locally for the same checks and build.
 
 ## Test coverage
 
+`internal/display/st7789` uses recording/erroring transports and substitute
+SPI/GPIO operations to check ST7789V initialization, full 240×320 RGB565 frames,
+image bounds, address windows, chunking, error propagation and resource cleanup.
+`cmd/displaytest` tests a complete diagnostic dry-run without
+device nodes. See [display verification](display.md) for Linux launch commands
+and the orientation, colors, offsets and wiring checks deferred until delivery.
+
 `internal/input/controls_test.go` supplies EC11 A/B and button snapshots with
 controlled timestamps. It checks full cycles in both directions, bounce,
 reversals, partial and invalid sequences, startup synchronization, fast
