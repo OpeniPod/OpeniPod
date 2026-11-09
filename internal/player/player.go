@@ -40,21 +40,26 @@ type Player struct {
 	closed     bool
 	callbackWG sync.WaitGroup
 
-	streamer  beep.StreamSeekCloser
-	ctrl      *beep.Ctrl
-	volume    *effects.Volume
-	equalizer *equalizer
+	streamer   beep.StreamSeekCloser
+	streamRate beep.SampleRate
+	resampler  *beep.Resampler
+	ctrl       *beep.Ctrl
+	volume     *effects.Volume
+	equalizer  *equalizer
 
-	track           music.Track
-	volumeLevel     int
-	equalizerPreset app.EqualizerPreset
-	playbackID      uint64
-	playbackStop    chan struct{}
+	track            music.Track
+	volumeLevel      int
+	equalizerPreset  app.EqualizerPreset
+	playbackID       uint64
+	playbackStop     chan struct{}
+	playbackFinished bool
 }
 
 // resetTrackLocked clears the current playback state. The caller must hold p.mu.
 func (p *Player) resetTrackLocked() {
 	p.streamer = nil
+	p.streamRate = 0
+	p.resampler = nil
 	p.ctrl = nil
 	p.volume = nil
 	p.equalizer = nil
@@ -148,9 +153,12 @@ func (p *Player) Play(ctx context.Context, track music.Track) error {
 	}
 
 	p.streamer = streamer
+	p.streamRate = format.SampleRate
 	p.track = track
+	p.playbackFinished = false
 
 	resampled := beep.Resample(4, format.SampleRate, sampleRate, streamer)
+	p.resampler = resampled
 	p.equalizer = newEqualizer(resampled, p.equalizerPreset)
 
 	p.ctrl = &beep.Ctrl{
@@ -218,6 +226,7 @@ func (p *Player) stopCurrentPlayback() error {
 
 	streamer := p.streamer
 	p.resetTrackLocked()
+	p.playbackFinished = false
 
 	speaker.Clear()
 	p.mu.Unlock()
@@ -346,6 +355,72 @@ func (p *Player) Resume(ctx context.Context) error {
 	return nil
 }
 
+// Seek moves the current stream relative to its current position. It preserves
+// playback and pause state and clamps the target to the track boundaries.
+func (p *Player) Seek(ctx context.Context, delta time.Duration) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.closed {
+		return ErrClosed
+	}
+	if p.streamer == nil || p.ctrl == nil || p.streamRate <= 0 {
+		if p.playbackFinished {
+			return nil
+		}
+		return errors.New("no track is playing")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	speaker.Lock()
+	position := p.streamer.Position()
+	if position >= p.streamer.Len() {
+		speaker.Unlock()
+		return nil
+	}
+	target := seekTarget(p.streamRate, position, p.streamer.Len(), p.track.Duration, delta)
+	err := p.streamer.Seek(target)
+	if err != nil {
+		speaker.Unlock()
+		return fmt.Errorf("seek current track: %w", err)
+	}
+	p.resampler = beep.Resample(4, p.streamRate, sampleRate, p.streamer)
+	p.equalizer.source = p.resampler
+	p.equalizer.state = [2]biquadState{}
+	speaker.Unlock()
+	if !p.queueEvent(app.PlaybackPositionChanged{Position: p.streamRate.D(target)}) {
+		return ErrClosed
+	}
+	return nil
+}
+
+func seekTarget(rate beep.SampleRate, position, length int, duration, delta time.Duration) int {
+	current := rate.D(position)
+	targetTime := current
+	switch {
+	case delta > 0 && (duration <= current || delta >= duration-current):
+		targetTime = duration
+	case delta < 0 && delta <= -current:
+		targetTime = 0
+	default:
+		targetTime += delta
+	}
+	target := rate.N(targetTime)
+	if length > 0 && target >= length {
+		return length - 1
+	}
+	if target < 0 {
+		return 0
+	}
+	return target
+}
+
 func (p *Player) SetVolume(ctx context.Context, vol int) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -408,6 +483,7 @@ func (p *Player) finishPlayback(playbackID uint64, streamer beep.StreamSeekClose
 
 	p.resetTrackLocked()
 	p.playbackStop = nil
+	p.playbackFinished = true
 	p.mu.Unlock()
 
 	closeErr := errors.Join(streamer.Err(), streamer.Close())

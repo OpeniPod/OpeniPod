@@ -30,17 +30,30 @@ func keyEvent(event key.Event) (app.Event, bool) {
 		return app.BackPressed{}, true
 	case key.CodeP, key.CodeSpacebar:
 		return app.PlayPausePressed{}, true
-	case key.CodeN, key.CodeRightArrow:
+	case key.CodeN:
 		return app.NextPressed{}, true
-	case key.CodeH, key.CodeLeftArrow:
+	case key.CodeH:
 		return app.PreviousPressed{}, true
+	case key.CodeRightArrow:
+		if event.Modifiers == key.ModShift {
+			return app.NextPressed{}, true
+		}
+		if event.Modifiers == 0 {
+			return app.SeekBy{Delta: app.SeekStep}, true
+		}
+	case key.CodeLeftArrow:
+		if event.Modifiers == key.ModShift {
+			return app.PreviousPressed{}, true
+		}
+		if event.Modifiers == 0 {
+			return app.SeekBy{Delta: -app.SeekStep}, true
+		}
 	case key.CodeEqualSign, key.CodeKeypadPlusSign:
 		return app.VolumeChanged{Delta: 10}, true
 	case key.CodeHyphenMinus, key.CodeKeypadHyphenMinus:
 		return app.VolumeChanged{Delta: -10}, true
 	case key.CodeQ:
 		return app.QuitRequested{}, true
-	default:
-		return nil, false
 	}
+	return nil, false
 }

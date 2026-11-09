@@ -17,6 +17,12 @@ ffmpeg -f lavfi -i anullsrc=r=44100:cl=mono -t 0.5 \
   -id3v2_version 0 -write_id3v1 0 valid.mp3
 ```
 
+`valid_48k.mp3` is a resampled silence fixture for player seeking tests:
+
+```sh
+lame --silent --resample 48 valid.mp3 valid_48k.mp3
+```
+
 The other fixtures use a 0.4 second source, which keeps the encoded duration at
 or below 0.5 seconds (AAC frame padding included):
 
