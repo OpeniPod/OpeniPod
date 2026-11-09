@@ -15,7 +15,16 @@ run. Use `make all` locally for the same checks and build.
 
 ## Test coverage
 
-Reducer unit tests cover navigation bounds, volume bounds and commands, library loading, playback events, and Back. The reducer does no I/O, so these tests use plain values. The application integration test feeds typed input events into a real App with FakeLibrary, FakePlayer, MemoryStorage, and a small observing UI. It checks that selecting a track reaches FakePlayer and returns as a rendered playing state.
+Reducer unit tests cover navigation bounds, volume bounds and commands, seeking
+and clamping, library loading, playback events, and Back. The reducer does no
+I/O, so these tests use plain values. The application integration test feeds
+typed input events into a real App with FakeLibrary, FakePlayer, MemoryStorage,
+and a small observing UI. It checks that selecting a track reaches FakePlayer
+and returns as a rendered playing state; seek events reach the player fake.
+
+Run manual keyboard checks on a laptop or in QEMU: Left and Right seek by five
+seconds, Shift+Left and Shift+Right switch tracks, and `h` and `n` switch
+tracks without an EC11. Scroll events remain menu navigation in master.
 
 Fakes let contributors test the application without audio files or device hardware. Add tests for observable behavior at the appropriate boundary. For event-loop changes, check cancellation, blocked sends, channel closure, and race behavior. Do not mock hardware behavior into unit tests merely to increase test count.
 
@@ -74,11 +83,13 @@ or a display in CI.
 For a manual check, run `go run ./cmd/player --music-dir /path/to/Music` from
 an X11 desktop session or Wayland with XWayland. Navigate Home, Tracks, Now
 Playing, and Settings; play and pause a real MP3; change volume and equalizer;
-select Update Library. Resize and cover/uncover the window, checking that the
-image retains its aspect ratio and redraws. Close using the window manager and
-restart to check settings persistence. Also check `q`, Ctrl+C, and SIGTERM
-shutdown. GUI smoke tests require a display and audio device and are not part
-of `make check`.
+select Update Library. On a laptop or in QEMU, verify Left and Right seek by
+five seconds, Shift+Left and Shift+Right switch tracks, and `h` and `n` work as
+previous/next aliases. Scroll remains menu navigation. Resize and cover/uncover
+the window, checking that the image retains its aspect ratio and redraws. Close
+using the window manager and restart to check settings persistence. Also check
+`q`, Ctrl+C, and SIGTERM shutdown. GUI smoke tests require a display and audio
+device and are not part of `make check`.
 
 Repeat the flow using the [on-screen controls](controls.md#on-screen-controls).
 Load at least nine tracks, page down twice, select a track on the final page,

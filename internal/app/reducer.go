@@ -1,6 +1,10 @@
 package app
 
-import "github.com/OpeniPod/OpeniPod/internal/music"
+import (
+	"time"
+
+	"github.com/OpeniPod/OpeniPod/internal/music"
+)
 
 const settingsMenuItemCount = 2
 
@@ -9,6 +13,7 @@ type command interface{ isCommand() }
 type playTrack struct{ track music.Track }
 type pausePlayback struct{}
 type resumePlayback struct{}
+type seekPlayback struct{ delta time.Duration }
 type setVolume struct{ volume int }
 type setEqualizer struct{ preset EqualizerPreset }
 type saveSettings struct{}
@@ -17,6 +22,7 @@ type refreshLibrary struct{}
 func (playTrack) isCommand()      {}
 func (pausePlayback) isCommand()  {}
 func (resumePlayback) isCommand() {}
+func (seekPlayback) isCommand()   {}
 func (setVolume) isCommand()      {}
 func (setEqualizer) isCommand()   {}
 func (saveSettings) isCommand()   {}
@@ -113,6 +119,8 @@ func Reduce(state AppState, event Event) (AppState, []command) {
 		return stepTrack(state, 1)
 	case PreviousPressed:
 		return stepTrack(state, -1)
+	case SeekBy:
+		return seek(state, e.Delta)
 	case VolumeChanged:
 		volume := clamp(state.Settings.Volume+e.Delta, 0, 100)
 		if volume != state.Settings.Volume {
@@ -151,6 +159,13 @@ func Reduce(state AppState, event Event) (AppState, []command) {
 		state.Error = e.Err.Error()
 	}
 	return state, nil
+}
+
+func seek(state AppState, delta time.Duration) (AppState, []command) {
+	if !state.Player.HasTrack || state.Player.Status == StatusStopped || delta == 0 {
+		return state, nil
+	}
+	return state, []command{seekPlayback{delta: delta}}
 }
 
 func startTrack(state AppState, track music.Track) (AppState, []command) {
