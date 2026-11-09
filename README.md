@@ -1,6 +1,6 @@
 # OpeniPod
 
-OpeniPod is a team learning project for a standalone music player inspired by the iPod. The intended device uses an Orange Pi Zero, a small display, physical controls, local music, and Linux. The desktop app has a working audio player; hardware support is not yet implemented.
+OpeniPod is a team learning project for a standalone music player inspired by the iPod. The intended device uses an Orange Pi Zero, a small display, physical controls, local music, and Linux. The desktop app runs on Linux and macOS; hardware support is not yet implemented.
 
 The desktop app provides an interactive graphical window, keyboard input, a
 filesystem music library, real MP3 playback, and file-backed volume and
@@ -18,6 +18,10 @@ sudo apt install build-essential pkg-config libasound2-dev
 sudo dnf install gcc pkgconf-pkg-config alsa-lib-devel
 ```
 
+On macOS, install Go 1.23 or newer and the Xcode Command Line Tools if they are
+not already installed (`xcode-select --install`). No X11 server or ALSA
+packages are needed; the desktop window and audio use native macOS backends.
+
 Then build or run:
 
 ```sh
@@ -28,10 +32,11 @@ go run ./cmd/player
 `make run` starts the same graphical player. `--platform desktop` is the
 default and only supported platform; an unsupported value produces an error.
 On Linux, run from an X11 desktop session or a Wayland session with XWayland.
-The window uses Shiny's X11 driver and needs no additional native GUI
-development packages. The initial size is 480×640; `--scale` accepts 1..4 and
-defaults to 2. Resizing keeps the 240×320 display's aspect ratio and adds black
-borders when needed.
+On macOS, the app opens a separate native window. The terminal does not show
+the UI or print routine startup output; it remains occupied until the window
+is closed or `q` is pressed. The initial size is 480×640; `--scale` accepts
+1..4 and defaults to 2. Resizing keeps the 240×320 display's aspect ratio and
+adds black borders when needed.
 
 To load music from a directory and its subdirectories, or to set the initial
 window scale:
@@ -49,6 +54,11 @@ changed, or deleted files appear after opening **Settings** from Home with
 again. The update performs one synchronous scan and atomically replaces the
 index; it is cancelled by Ctrl+C.
 There is no background scan or filesystem watcher.
+
+If a cached index was created for a different music-directory path (for
+example, on another operating system), the UI shows an error rather than
+silently rescanning. Choose **Settings → Update Library** to scan the selected
+directory and replace the index.
 
 The library indexes regular files with `.mp3`, `.flac`, `.wav`, `.ogg`, `.m4a`,
 and `.aac` extensions, ignoring case; only MP3 files can currently be played.
@@ -142,15 +152,18 @@ levels and time; real GPIO is not connected yet. See
 | Enter | Select |
 | `b` / Esc | Back to Home |
 | `p` / Space | Play or pause |
-| `n` / → | Next track |
-| `h` / ← | Previous track |
+| ← / → | Seek backward / forward by 5 seconds |
+| Shift+← / Shift+→ | Previous / next track |
+| `h` / `n` | Previous / next track |
 | `+` / `-` | Volume by 10% |
 | `q` | Quit |
 
 Open **Tracks** and choose a real MP3 from the filesystem library to play it
-and view its progress in **Now Playing**. Library updates run synchronously
-and replace the track list on success. Volume settings persist across
-restarts.
+and view its progress in **Now Playing**. On the board, rotate the EC11 in
+**Now Playing** to seek by 5 seconds per detent; on other screens it navigates
+the selection. To change tracks on the board, open **Tracks** and select a
+track. Library updates run synchronously and replace the track list on success.
+Volume settings persist across restarts.
 
 ## Checks
 

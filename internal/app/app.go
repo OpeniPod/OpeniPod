@@ -17,6 +17,7 @@ type Player interface {
 	Play(context.Context, music.Track) error
 	Pause(context.Context) error
 	Resume(context.Context) error
+	Seek(context.Context, time.Duration) error
 	SetVolume(context.Context, int) error
 	SetEqualizer(context.Context, EqualizerPreset) error
 	Close() error
@@ -274,6 +275,11 @@ func (a *App) execute(ctx context.Context, command command) error {
 			return failed("player", "resume", err, "track_id", a.state.Player.Track.ID)
 		}
 		a.logger.Info("resume requested", "component", "player", "operation", "resume", "track_id", a.state.Player.Track.ID)
+	case seekPlayback:
+		if err := a.player.Seek(ctx, c.delta); err != nil {
+			return failed("player", "seek", err, "track_id", a.state.Player.Track.ID, "delta_ms", c.delta.Milliseconds())
+		}
+		a.logger.Debug("seek requested", "component", "player", "operation", "seek", "track_id", a.state.Player.Track.ID, "delta_ms", c.delta.Milliseconds())
 	case setVolume:
 		if err := a.player.SetVolume(ctx, c.volume); err != nil {
 			return failed("player", "set_volume", err, "volume", c.volume)

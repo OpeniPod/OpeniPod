@@ -22,7 +22,12 @@ rotation, independent button debounce, release/rearm, held buttons, and stale
 timestamps without real delays. See [control signals](controls.md) for the
 decoder contract and future GPIO integration.
 
-Reducer unit tests cover navigation bounds, volume bounds and commands, library loading, playback events, and Back. The reducer does no I/O, so these tests use plain values. The application integration test feeds typed input events into a real App with FakeLibrary, FakePlayer, MemoryStorage, and a small observing UI. It checks that selecting a track reaches FakePlayer and returns as a rendered playing state.
+Reducer unit tests cover navigation bounds, volume bounds and commands, seeking
+and clamping, library loading, playback events, and Back. The reducer does no
+I/O, so these tests use plain values. The application integration test feeds
+typed input events into a real App with FakeLibrary, FakePlayer, MemoryStorage,
+and a small observing UI. It checks that selecting a track reaches FakePlayer
+and returns as a rendered playing state; seek events reach the player fake.
 
 Fakes let contributors test the application without audio files or device hardware. Add tests for observable behavior at the appropriate boundary. For event-loop changes, check cancellation, blocked sends, channel closure, and race behavior. Do not mock hardware behavior into unit tests merely to increase test count.
 

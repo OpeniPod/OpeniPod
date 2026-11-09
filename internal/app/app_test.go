@@ -120,6 +120,28 @@ func TestKeyboardStyleEventsReachPlayerAndUI(t *testing.T) {
 	}
 }
 
+func TestSeekEventReachesPlayer(t *testing.T) {
+	fakePlayer := player.NewFake()
+	application := app.New(fakePlayer, library.NewFake(), storage.NewMemory(50), eventInput{
+		events: []app.Event{
+			app.SelectPressed{},
+			app.Scroll{Delta: 1},
+			app.SelectPressed{},
+			app.SeekBy{Delta: app.SeekStep},
+			app.QuitRequested{},
+		},
+	}, silentUI{})
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := application.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if fakePlayer.Track.Title != "Digital Love" || fakePlayer.Position != app.SeekStep {
+		t.Fatalf("seek result = track %q at %s, want Digital Love at %s",
+			fakePlayer.Track.Title, fakePlayer.Position, app.SeekStep)
+	}
+}
+
 func TestRunWaitsForInputShutdown(t *testing.T) {
 	started := make(chan struct{})
 	trackedPlayer := &closeTrackingPlayer{Player: player.NewFake()}

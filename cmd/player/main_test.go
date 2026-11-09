@@ -20,19 +20,22 @@ import (
 
 func TestParseOptionsDefaultsAndFlags(t *testing.T) {
 	home := t.TempDir()
-	config := filepath.Join(t.TempDir(), "config")
 	t.Setenv("HOME", home)
-	t.Setenv("XDG_CONFIG_HOME", config)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(t.TempDir(), "config"))
 
 	got, err := parseOptions(nil, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	configDir, err := os.UserConfigDir()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got.musicDir != filepath.Join(home, "Music") {
 		t.Errorf("default musicDir = %q, want %q", got.musicDir, filepath.Join(home, "Music"))
 	}
-	if got.settingsFile != filepath.Join(config, "openipod", "settings.json") {
-		t.Errorf("default settingsFile = %q, want %q", got.settingsFile, filepath.Join(config, "openipod", "settings.json"))
+	if got.settingsFile != filepath.Join(configDir, "openipod", "settings.json") {
+		t.Errorf("default settingsFile = %q, want %q", got.settingsFile, filepath.Join(configDir, "openipod", "settings.json"))
 	}
 	if got.platform != "desktop" || got.logTarget != "file" || got.logLevel != "info" || got.scale != 2 {
 		t.Errorf("default platform/logging/scale = %+v", got)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/OpeniPod/OpeniPod/internal/app"
 	"github.com/OpeniPod/OpeniPod/internal/music"
@@ -13,7 +14,10 @@ import (
 type Fake struct {
 	events    chan app.Event
 	Track     music.Track
+	Position  time.Duration
+	HasTrack  bool
 	Playing   bool
+	Paused    bool
 	Volume    int
 	Equalizer app.EqualizerPreset
 }
@@ -31,7 +35,10 @@ func (f *Fake) Play(ctx context.Context, track music.Track) error {
 		return err
 	}
 	f.Track = track
+	f.Position = 0
+	f.HasTrack = true
 	f.Playing = true
+	f.Paused = false
 	return nil
 }
 
@@ -40,6 +47,7 @@ func (f *Fake) Pause(ctx context.Context) error {
 		return err
 	}
 	f.Playing = false
+	f.Paused = true
 	return nil
 }
 
@@ -48,6 +56,33 @@ func (f *Fake) Resume(ctx context.Context) error {
 		return err
 	}
 	f.Playing = true
+	f.Paused = false
+	return nil
+}
+
+func (f *Fake) Seek(ctx context.Context, delta time.Duration) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if !f.HasTrack || (!f.Playing && !f.Paused) {
+		return errors.New("no track is playing")
+	}
+	target := f.Position
+	switch {
+	case delta > 0 && f.Track.Duration > 0 &&
+		(f.Position >= f.Track.Duration || delta >= f.Track.Duration-f.Position):
+		target = f.Track.Duration
+	case delta > 0 && f.Position > time.Duration(1<<63-1)-delta:
+		target = time.Duration(1<<63 - 1)
+	case delta < 0 && delta <= -f.Position:
+		target = 0
+	default:
+		target += delta
+	}
+	if err := f.emit(ctx, app.PlaybackPositionChanged{Position: target}); err != nil {
+		return err
+	}
+	f.Position = target
 	return nil
 }
 
