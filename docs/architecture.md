@@ -33,7 +33,7 @@ button signals for a future hardware input adapter. `ui` renders a state
 snapshot as a 240×320 RGBA image using an embedded font; `desktop` presents
 that image in a native window. `library` supplies filesystem and fake
 adapters; `player` supplies real and fake players; `storage` supplies file and
-memory adapters. `cmd/player` is the only entry point and wires the native
+memory adapters. `cmd/player` is the player entry point and wires the native
 window with the real player and filesystem library. The application core
 imports no window-system, audio, or board-specific package.
 
@@ -176,7 +176,12 @@ and owns no goroutines or application state. See [control signals](controls.md)
 for the signal contract, assumptions, and future GPIO integration.
 
 An Orange Pi input adapter can later feed real GPIO signals into that processor.
-The current image renderer is hardware-independent; a future SPI display
-adapter can transfer its RGBA output to a physical display. The desktop player
-exercises the existing app and MP3 player without board-specific display
-drivers or deployment.
+The image renderer is hardware-independent. `internal/display/st7789` accepts
+its 240×320 RGBA output as `image.Image`, converts to RGB565 and transfers full
+frames over SPI. It imports no application or UI package, owns only device
+resources and a transfer buffer, and returns initialization/transfer errors.
+Its Linux transport uses spidev and GPIO character devices with explicit
+connection parameters. `cmd/displaytest` wires this adapter to a diagnostic
+pattern; `--dry-run` substitutes device access. See
+[display setup and image contract](display.md). The desktop player continues
+to exercise the existing app and MP3 player through its native window.

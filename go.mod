@@ -6,9 +6,12 @@ require (
 	github.com/abema/go-mp4 v1.4.1
 	github.com/gopxl/beep v1.4.1
 	github.com/tcolgate/mp3 v0.0.0-20170426193717-e79c5a46d300
+	github.com/warthog618/go-gpiocdev v0.10.0
 	golang.org/x/exp/shiny v0.0.0-20240909161429-701f63a606c0
 	golang.org/x/image v0.25.0
 	golang.org/x/mobile v0.0.0-20231127183840-76ac6878050a
+	periph.io/x/conn/v3 v3.7.2
+	periph.io/x/host/v3 v3.8.5
 )
 
 require (
@@ -20,6 +23,6 @@ require (
 	github.com/hajimehoshi/go-mp3 v0.3.4 // indirect
 	github.com/jezek/xgb v1.1.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	golang.org/x/sys v0.15.0 // indirect
+	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
 )

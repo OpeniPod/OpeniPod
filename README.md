@@ -1,6 +1,6 @@
 # OpeniPod
 
-OpeniPod is a team learning project for a standalone music player inspired by the iPod. The intended device uses an Orange Pi Zero, a small display, physical controls, local music, and Linux. The desktop app runs on Linux and macOS; hardware support is not yet implemented.
+OpeniPod is a team learning project for a standalone music player inspired by the iPod. The intended device uses an Orange Pi Zero, a small display, physical controls, local music, and Linux. The desktop app has a working audio player; the SPI display adapter is implemented and awaits hardware validation.
 
 The desktop app provides an interactive graphical window, keyboard input, a
 filesystem music library, real MP3 playback, and file-backed volume and
@@ -138,6 +138,14 @@ Focus the window and use the keys in the controls table below. Close the
 window, press `q`, or use Ctrl+C to quit and save pending settings. Mouse
 navigation and on-screen buttons are not implemented.
 
+## SPI display
+
+The ST7789V SPI adapter accepts the same 240×320 image as the desktop UI.
+`go run ./cmd/displaytest --dry-run` checks initialization and frame transfer
+with a substitute transport. Linux setup, connection options and the hardware
+test command are in [display adapter](docs/display.md). The desktop player
+continues to use its native window.
+
 ## Controls
 
 Software processing of EC11 rotation and encoder, Back, and Play/Pause buttons
@@ -188,7 +196,7 @@ native keyboard ──> desktop input ──typed events──> App loop ──A
 ```
 
 `internal/app` owns mutable state and chooses side effects. Adapters do not
-edit it. The only composition root is `cmd/player/main.go`. See
+edit it. The player composition root is `cmd/player/main.go`. See
 [architecture](docs/architecture.md), [development](docs/development.md),
 [testing](docs/testing.md), [diagnostic logging](docs/logging.md), and
 [contributing](CONTRIBUTING.md).

@@ -55,7 +55,7 @@ running `make fmt` to format them.
 
 Read [architecture](architecture.md) before changing package boundaries, state ownership, or event flow. Keep a branch and PR focused; see [contributing](../CONTRIBUTING.md).
 
-`make run` launches the graphical player through the sole entry point,
+`make run` launches the graphical player through its entry point,
 `cmd/player`. `internal/desktop` wraps Shiny's native window and implements
 both App input and renderer interfaces. It uses `ui.Display` for every frame;
 application logic stays in App. Its keyboard mapping lives in
