@@ -51,3 +51,36 @@ FLAC, PCM WAV, Ogg Vorbis, AAC in an M4A container, AAC ADTS, an MP4 video-only
 container, and Ogg Opus. The MP3 fixture was checked as MPEG-1 Layer III audio.
 The library tests use these files to exercise content recognition without
 relying on filename extensions.
+
+## Song metadata fixtures
+
+The `tagged.*`, `tagged-opus.ogg` and `tagged-flac.ogg` fixtures remux the
+existing generated silence without re-encoding it. They all contain title
+`Digital Love`, artist `Daft Punk`, album `Discovery` and track `3/14` (M4A
+stores the track number and total as integers). These labels are test data;
+the audio is generated silence, not a recording of the named song.
+
+Use the same FFmpeg binary as above:
+
+```sh
+for ext in mp3 flac wav ogg m4a aac; do
+  case "$ext" in
+    mp3) options='-id3v2_version 3' ;;
+    aac) options='-write_id3v2 1' ;;
+    *) options='' ;;
+  esac
+  ffmpeg -i "valid.$ext" -c copy \
+    -metadata title='Digital Love' -metadata artist='Daft Punk' \
+    -metadata album='Discovery' -metadata track='3/14' \
+    $options "tagged.$ext"
+done
+ffmpeg -i opus.ogg -c copy \
+  -metadata title='Digital Love' -metadata artist='Daft Punk' \
+  -metadata album='Discovery' -metadata track='3/14' tagged-opus.ogg
+ffmpeg -i valid.flac -c copy -f ogg \
+  -metadata title='Digital Love' -metadata artist='Daft Punk' \
+  -metadata album='Discovery' -metadata track='3/14' tagged-flac.ogg
+```
+
+Recognition tests build additional damaged-ID3 examples in memory. Running
+tests requires neither FFmpeg nor an audio device.

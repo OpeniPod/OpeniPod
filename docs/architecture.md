@@ -158,8 +158,13 @@ regular files by extension, then recognizes audio from their contents in
 RIFF/WAVE, and Ogg require mandatory audio headers. MP4/M4A requires an audio
 handler and media data, using selective box parsing with
 `github.com/abema/go-mp4`. MP3 framing uses `github.com/tcolgate/mp3`.
-Optional song metadata is not interpreted and full audio integrity is not
-checked; duration is not read. Unrecognized files are skipped with a
+After recognition, the same scan reads song tags and duration into the existing
+`music.Track`. ID3 parsing uses `github.com/dhowden/tag`; Vorbis comments,
+RIFF INFO/embedded ID3, and MP4 iTunes fields are read in `internal/library`.
+Tag errors are diagnostic warnings rather than evidence of non-audio content.
+Missing/blank titles fall back to the filename; other missing fields and unknown
+duration use zero values. Duration uses headers or frame counts without sample
+decoding. Full audio integrity is not checked. Unrecognized files are skipped with a
 diagnostic warning containing the path and reason. It returns tracks sorted by
 path. Track IDs are
 SHA-256 hashes of cleaned absolute paths. Scans observe context cancellation

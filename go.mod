@@ -4,6 +4,7 @@ go 1.23.0
 
 require (
 	github.com/abema/go-mp4 v1.4.1
+	github.com/dhowden/tag v0.0.0-20240417053706-3d75831295e8
 	github.com/gopxl/beep v1.4.1
 	github.com/tcolgate/mp3 v0.0.0-20170426193717-e79c5a46d300
 	github.com/warthog618/go-gpiocdev v0.10.0
