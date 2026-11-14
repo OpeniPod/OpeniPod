@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/OpeniPod/OpeniPod/internal/music"
 )
@@ -106,6 +107,51 @@ func TestPlaybackEvents(t *testing.T) {
 	state, _ = Reduce(state, PlaybackResumed{})
 	if state.Player.Status != StatusPlaying {
 		t.Fatalf("status after resume = %v", state.Player.Status)
+	}
+}
+
+func TestSeekInputsRequestRelativeSeek(t *testing.T) {
+	state := AppState{
+		Screen: ScreenNowPlaying,
+		Player: PlayerState{HasTrack: true, Status: StatusPlaying},
+	}
+	for _, tc := range []struct {
+		name  string
+		event Event
+		delta time.Duration
+	}{
+		{name: "encoder forward", event: Scroll{Delta: 1}, delta: SeekStep},
+		{name: "encoder backward", event: Scroll{Delta: -1}, delta: -SeekStep},
+		{name: "keyboard forward", event: SeekBy{Delta: SeekStep}, delta: SeekStep},
+		{name: "keyboard backward", event: SeekBy{Delta: -SeekStep}, delta: -SeekStep},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, commands := Reduce(state, tc.event)
+			if len(commands) != 1 {
+				t.Fatalf("commands = %#v, want one seek command", commands)
+			}
+			seek, ok := commands[0].(seekPlayback)
+			if !ok || seek.delta != tc.delta {
+				t.Fatalf("command = %#v, want seek by %s", commands[0], tc.delta)
+			}
+			if got.Player.Position != state.Player.Position || got.Screen != state.Screen {
+				t.Fatalf("seek input directly changed playback state: %+v", got)
+			}
+		})
+	}
+}
+
+func TestSeekIgnoredWithoutActiveTrack(t *testing.T) {
+	for _, state := range []AppState{
+		{Screen: ScreenNowPlaying},
+		{Player: PlayerState{HasTrack: true, Status: StatusStopped}},
+	} {
+		for _, event := range []Event{SeekBy{Delta: SeekStep}, Scroll{Delta: 1}} {
+			_, commands := Reduce(state, event)
+			if len(commands) != 0 {
+				t.Fatalf("state %+v event %#v produced commands %#v, want none", state, event, commands)
+			}
+		}
 	}
 }
 

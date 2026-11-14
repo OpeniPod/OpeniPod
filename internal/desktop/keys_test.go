@@ -9,9 +9,10 @@ import (
 
 func TestKeyEventMapping(t *testing.T) {
 	tests := []struct {
-		name string
-		code key.Code
-		want app.Event
+		name      string
+		code      key.Code
+		modifiers key.Modifiers
+		want      app.Event
 	}{
 		{name: "J scrolls down", code: key.CodeJ, want: app.Scroll{Delta: 1}},
 		{name: "down arrow scrolls down", code: key.CodeDownArrow, want: app.Scroll{Delta: 1}},
@@ -24,9 +25,11 @@ func TestKeyEventMapping(t *testing.T) {
 		{name: "P toggles playback", code: key.CodeP, want: app.PlayPausePressed{}},
 		{name: "space toggles playback", code: key.CodeSpacebar, want: app.PlayPausePressed{}},
 		{name: "N advances track", code: key.CodeN, want: app.NextPressed{}},
-		{name: "right arrow advances track", code: key.CodeRightArrow, want: app.NextPressed{}},
+		{name: "right arrow seeks forward", code: key.CodeRightArrow, want: app.SeekBy{Delta: app.SeekStep}},
+		{name: "shift right arrow advances track", code: key.CodeRightArrow, modifiers: key.ModShift, want: app.NextPressed{}},
 		{name: "H returns to previous track", code: key.CodeH, want: app.PreviousPressed{}},
-		{name: "left arrow returns to previous track", code: key.CodeLeftArrow, want: app.PreviousPressed{}},
+		{name: "left arrow seeks backward", code: key.CodeLeftArrow, want: app.SeekBy{Delta: -app.SeekStep}},
+		{name: "shift left arrow returns to previous track", code: key.CodeLeftArrow, modifiers: key.ModShift, want: app.PreviousPressed{}},
 		{name: "equals increases volume", code: key.CodeEqualSign, want: app.VolumeChanged{Delta: 10}},
 		{name: "keypad plus increases volume", code: key.CodeKeypadPlusSign, want: app.VolumeChanged{Delta: 10}},
 		{name: "hyphen decreases volume", code: key.CodeHyphenMinus, want: app.VolumeChanged{Delta: -10}},
@@ -38,7 +41,7 @@ func TestKeyEventMapping(t *testing.T) {
 	for _, tc := range tests {
 		for _, direction := range []key.Direction{key.DirPress, key.DirNone} {
 			t.Run(tc.name+"/"+direction.String(), func(t *testing.T) {
-				modifiers := key.Modifiers(0)
+				modifiers := tc.modifiers
 				if tc.code == key.CodeC {
 					modifiers = key.ModControl
 				}
