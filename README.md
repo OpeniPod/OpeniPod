@@ -52,9 +52,16 @@ There is no background scan or filesystem watcher.
 
 The library indexes regular files with `.mp3`, `.flac`, `.wav`, `.ogg`, `.m4a`,
 and `.aac` extensions, ignoring case; only MP3 files can currently be played.
-Titles are filenames including extensions; artist and album metadata are not
-read. When an MP3 starts playing, the decoder supplies its duration so Now
-Playing can show the total time and progress.
+Scans read title, artist, album, track number and, where available, duration
+into the library index. Missing or blank titles fall back to filenames including
+extensions; missing artist, album and track number remain empty/zero.
+MP3 and ADTS AAC use ID3v1/ID3v2 tags (`github.com/dhowden/tag`); FLAC and
+Ogg Vorbis/Opus/FLAC use Vorbis comments; M4A uses iTunes metadata; WAV uses
+RIFF INFO or embedded ID3. Damaged optional tags produce a diagnostic warning
+and keep the recognized audio file in the library.
+Duration comes from stream/container headers or audio frame counts without
+decoding samples; unknown duration remains zero. At playback, the MP3 decoder
+supplies the playing track's duration to Now Playing.
 Files are sorted lexicographically by path within the directory. Each track
 has an absolute, cleaned path and a stable ID derived from that path. Renaming
 or moving a file changes its ID. Symbolic links inside the directory are
@@ -71,7 +78,8 @@ Unrecognized files (including text renamed to an audio extension and video-only
 MP4 renamed to `.m4a`) are skipped with a warning containing the path and
 reason. Missing song tags do not prevent recognition. This recognizes the
 format without decoding or checking the entire file for damage. Existing index
-entries are checked only after Update Library.
+entries and metadata are read again only after Update Library. Older indexes
+remain usable; choose Update Library to populate their metadata and duration.
 
 An empty directory or one containing only unsupported files gives an empty
 track list. A missing directory, a file supplied as the directory, or a read

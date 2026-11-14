@@ -49,6 +49,11 @@ Audio scan tests use small generated silence fixtures for all supported
 extensions and cover text renamed to each audio extension, audio with a
 different extension, MP3 tag-only files, damaged metadata, cached versus
 refreshed recognition, Ogg Opus, and video-only MP4 renamed to `.m4a`.
+Tagged silence fixtures cover title, artist, album and track number for MP3,
+FLAC, WAV, M4A, AAC and Ogg Vorbis/Opus/FLAC, including mismatched extensions.
+Existing untagged and damaged-MP3 tests also check filename fallback and keeping
+recognized audio. A command test checks that ordinary startup preserves all
+saved metadata and Update Library reads and saves changed tags.
 Fixtures and generation commands are committed, so normal tests require no
 audio tools or hardware. Full audio decoding is outside these tests.
 

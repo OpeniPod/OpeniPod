@@ -201,6 +201,80 @@ func TestRunUsesSavedLibraryUntilMenuRefresh(t *testing.T) {
 	}
 }
 
+func TestRunPreservesAndRefreshesTrackMetadata(t *testing.T) {
+	musicDir := t.TempDir()
+	writePlayerTestFixture(t, musicDir, "track01.mp3", "tagged.mp3")
+	args := []string{"--music-dir", musicDir}
+
+	first := runPlayer(t, args, eventInput{})
+	if first.err != nil {
+		t.Fatal(first.err)
+	}
+	firstTracks := lastState(t, first.states).Library.Tracks
+	if len(firstTracks) != 1 {
+		t.Fatalf("first library = %+v, want one track", firstTracks)
+	}
+	tagged := firstTracks[0]
+	if tagged.Title != "Digital Love" || tagged.Artist != "Daft Punk" ||
+		tagged.Album != "Discovery" || tagged.TrackNum != 3 || tagged.Duration <= 0 {
+		t.Fatalf("tagged track = %+v, want Digital Love metadata and duration", tagged)
+	}
+
+	writePlayerTestFixture(t, musicDir, "track01.mp3", "valid.mp3")
+	second := runPlayer(t, args, eventInput{})
+	if second.err != nil {
+		t.Fatal(second.err)
+	}
+	cachedTracks := lastState(t, second.states).Library.Tracks
+	if len(cachedTracks) != 1 {
+		t.Fatalf("cached library = %+v, want one track", cachedTracks)
+	}
+	cached := cachedTracks[0]
+	if cached.ID != tagged.ID || cached.Path != tagged.Path || cached.Title != tagged.Title ||
+		cached.Artist != tagged.Artist || cached.Album != tagged.Album ||
+		cached.TrackNum != tagged.TrackNum || cached.Duration != tagged.Duration {
+		t.Fatalf("cached track = %+v, want saved tagged track %+v", cached, tagged)
+	}
+
+	refresh := runPlayer(t, args, eventInput{events: []app.Event{
+		app.Scroll{Delta: 2},
+		app.SelectPressed{},
+		app.SelectPressed{},
+		app.BackPressed{},
+		app.SelectPressed{},
+	}})
+	if refresh.err != nil {
+		t.Fatal(refresh.err)
+	}
+	refreshedTracks := lastState(t, refresh.states).Library.Tracks
+	if len(refreshedTracks) != 1 {
+		t.Fatalf("refreshed library = %+v, want one track", refreshedTracks)
+	}
+	refreshed := refreshedTracks[0]
+	if refreshed.ID != tagged.ID || refreshed.Path != tagged.Path || refreshed.Title != "track01.mp3" ||
+		refreshed.Artist != "" || refreshed.Album != "" || refreshed.TrackNum != 0 || refreshed.Duration <= 0 {
+		t.Fatalf("refreshed track = %+v, want filename fallback and duration", refreshed)
+	}
+	if state := lastState(t, refresh.states); state.Error != "" {
+		t.Fatalf("refresh state = %+v, want no error", state)
+	}
+
+	third := runPlayer(t, args, eventInput{})
+	if third.err != nil {
+		t.Fatal(third.err)
+	}
+	persistedTracks := lastState(t, third.states).Library.Tracks
+	if len(persistedTracks) != 1 {
+		t.Fatalf("persisted library = %+v, want one track", persistedTracks)
+	}
+	persisted := persistedTracks[0]
+	if persisted.ID != refreshed.ID || persisted.Path != refreshed.Path || persisted.Title != refreshed.Title ||
+		persisted.Artist != refreshed.Artist || persisted.Album != refreshed.Album ||
+		persisted.TrackNum != refreshed.TrackNum || persisted.Duration != refreshed.Duration {
+		t.Fatalf("persisted track = %+v, want refreshed track %+v", persisted, refreshed)
+	}
+}
+
 func TestRunMenuRefreshRecoversInvalidLibraryIndex(t *testing.T) {
 	musicDir := t.TempDir()
 	writePlayerTestFile(t, musicDir, "track.mp3")
@@ -423,7 +497,12 @@ func trackTitles(state app.AppState) []string {
 func writePlayerTestFile(t *testing.T, root, name string) {
 	t.Helper()
 	extension := strings.ToLower(filepath.Ext(name))
-	fixture, err := os.ReadFile(filepath.Join("..", "..", "internal", "library", "testdata", "valid"+extension))
+	writePlayerTestFixture(t, root, name, "valid"+extension)
+}
+
+func writePlayerTestFixture(t *testing.T, root, name, fixtureName string) {
+	t.Helper()
+	fixture, err := os.ReadFile(filepath.Join("..", "..", "internal", "library", "testdata", fixtureName))
 	if err != nil {
 		t.Fatal(err)
 	}
