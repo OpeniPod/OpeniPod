@@ -15,20 +15,6 @@ run. Use `make all` locally for the same checks and build.
 
 ## Test coverage
 
-`internal/display/st7789` uses recording/erroring transports and substitute
-SPI/GPIO operations to check ST7789V initialization, full 240×320 RGB565 frames,
-image bounds, address windows, chunking, error propagation and resource cleanup.
-`cmd/displaytest` tests a complete diagnostic dry-run without
-device nodes. See [display verification](display.md) for Linux launch commands
-and the orientation, colors, offsets and wiring checks deferred until delivery.
-
-`internal/input/controls_test.go` supplies EC11 A/B and button snapshots with
-controlled timestamps. It checks full cycles in both directions, bounce,
-reversals, partial and invalid sequences, startup synchronization, fast
-rotation, independent button debounce, release/rearm, held buttons, and stale
-timestamps without real delays. See [control signals](controls.md) for the
-decoder contract and future GPIO integration.
-
 Reducer unit tests cover navigation bounds, volume bounds and commands, library loading, playback events, and Back. The reducer does no I/O, so these tests use plain values. The application integration test feeds typed input events into a real App with FakeLibrary, FakePlayer, MemoryStorage, and a small observing UI. It checks that selecting a track reaches FakePlayer and returns as a rendered playing state.
 
 Fakes let contributors test the application without audio files or device hardware. Add tests for observable behavior at the appropriate boundary. For event-loop changes, check cancellation, blocked sends, channel closure, and race behavior. Do not mock hardware behavior into unit tests merely to increase test count.
@@ -72,8 +58,8 @@ tracks, and restart with the same settings file. Use a track with bass and
 vocals to compare the profiles; enabled presets deliberately reserve headroom.
 
 Automated command tests do not open an audio device or native window. Use the
-listening check above to verify real output. Hardware checks require the
-actual board and peripherals.
+listening check above to verify real output. The suite runs on the host and does
+not count as a direct test of either phone.
 
 ## Native window
 
@@ -93,6 +79,20 @@ image retains its aspect ratio and redraws. Close using the window manager and
 restart to check settings persistence. Also check `q`, Ctrl+C, and SIGTERM
 shutdown. GUI smoke tests require a display and audio device and are not part
 of `make check`.
+
+## Runtime test matrix
+
+| Target | Checks |
+| --- | --- |
+| Laptop | Run `make check`, then do the native-window and listening checks above. Verify keyboard navigation, an X11 or XWayland session, and ALSA playback. |
+| Nura in QEMU (x86-64) | Build and run inside the [VM](phone.md#nura-in-qemu). Check XWayland, keyboard navigation, playback through the virtual audio device, and persistence across app restarts. |
+| Redmi 4X (`santoni`) and Pixel 4a (`sunfish`) | Build for ARM64 in [Nura](phone.md#build-and-launch-in-nura). Check X11/XWayland, a connected keyboard, playback on the available audio outputs, and recovery after screen lock. Record each model and Nura version tested. |
+
+Touch and physical phone key checks belong in the device test once those
+inputs are integrated. The VM uses virtual hardware and cannot validate the
+phone's audio routing, inputs, or suspend behavior.
+
+## Diagnostic logging
 
 Diagnostic tests cover lifecycle/playback records, recovery and fatal failures,
 absence of error duplication, filtering, and concurrent journal priorities.
