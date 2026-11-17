@@ -1,10 +1,13 @@
 # OpeniPod
 
-OpeniPod is a team learning project for a standalone music player inspired by the iPod. The intended device uses an Orange Pi Zero, a small display, physical controls, local music, and Linux. The desktop app has a working audio player; the SPI display adapter is implemented and awaits hardware validation.
+OpeniPod is an iPod-inspired player for local music on Linux phones running
+Nura (formerly postmarketOS). The Redmi 4X and Google Pixel 4a are our
+physical test targets. The [Nura guide](docs/phone.md) covers running the
+player in QEMU and on a phone.
 
-The desktop app provides an interactive graphical window, keyboard input, a
-filesystem music library, real MP3 playback, and file-backed volume and
-equalizer settings. Fake adapters remain available for tests.
+The current Go app provides a graphical window, a local music library, MP3
+playback, and persistent volume and equalizer settings. Use the keyboard
+to develop and test on a laptop or in QEMU.
 
 ## Build and run
 
@@ -117,56 +120,12 @@ Diagnostics default to a separate JSON file at
 detail, and `--log-file` to choose a development file. Linux journal setup,
 retention and viewing commands are in [diagnostic logging](docs/logging.md).
 
-## Desktop window
-
-The player renders each application state to a 240×320 RGBA frame and displays
-it in the native window:
-
-```sh
-make run
-# Choose your music directory and initial window scale:
-go run ./cmd/player --music-dir "/path/to/Music" --scale 2
-```
-
-The graphical player uses the real audio player and filesystem library.
-`--settings-file` selects the settings file; by default it uses the user config
-directory's `openipod/settings.json`.
-
-Focus the window and use the keys in the controls table below. Close the
-window, press `q`, or use Ctrl+C to quit and save pending settings. Mouse
-navigation and on-screen buttons are not implemented.
-
-## SPI display
-
-The ST7789V SPI adapter accepts the same 240×320 image as the desktop UI.
-`go run ./cmd/displaytest --dry-run` checks initialization and frame transfer
-with a substitute transport. Linux setup, connection options and the hardware
-test command are in [display adapter](docs/display.md). The desktop player
-continues to use its native window.
-
 ## Controls
 
-Software processing of EC11 rotation and encoder, Back, and Play/Pause buttons
-is available separately from desktop keyboard input. Tests supply signal
-levels and time; real GPIO is not connected yet. See
-[control signals](docs/controls.md) for the decoder policy and integration API.
-
-| Key | Action |
-| --- | --- |
-| `j` / ↓ | Move down |
-| `k` / ↑ | Move up |
-| Enter | Select |
-| `b` / Esc | Back to Home |
-| `p` / Space | Play or pause |
-| `n` / → | Next track |
-| `h` / ← | Previous track |
-| `+` / `-` | Volume by 10% |
-| `q` | Quit |
-
-Open **Tracks** and choose a real MP3 from the filesystem library to play it
-and view its progress in **Now Playing**. Library updates run synchronously
-and replace the track list on success. Volume settings persist across
-restarts.
+Focus the player window. Use ↑/↓ and Enter to open **Tracks** and select an
+MP3. **Now Playing** shows playback progress. Press Space to pause or
+resume. See [controls](docs/controls.md) for all keyboard shortcuts and
+the status of phone input.
 
 ## Checks
 

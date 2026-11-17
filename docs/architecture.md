@@ -14,7 +14,6 @@ cmd/player (desktop composition root)
    └──> internal/storage
 
 internal/desktop ──> internal/app, internal/ui
-internal/input   ──> internal/app
 internal/ui      ──> internal/app
 internal/player  ──> internal/app, internal/music
 internal/storage ──> internal/app
@@ -28,28 +27,29 @@ desktop window.
 
 `music` has the small `Track` type. `app` defines events, `AppState`, the reducer,
 and consumer-side interfaces. `desktop` converts native window keyboard and
-close events into App events. `input.Controls` processes EC11 rotation and
-button signals for a future hardware input adapter. `ui` renders a state
-snapshot as a 240×320 RGBA image using an embedded font; `desktop` presents
-that image in a native window. `library` supplies filesystem and fake
-adapters; `player` supplies real and fake players; `storage` supplies file and
-memory adapters. `cmd/player` is the player entry point and wires the native
-window with the real player and filesystem library. The application core
-imports no window-system, audio, or board-specific package.
+close events into App events. `ui` renders a state snapshot as a 240×320 RGBA
+image using an embedded font; `desktop` presents that image in a native window.
+`library` supplies filesystem and fake adapters; `player` supplies real and
+fake players; `storage` supplies file and memory adapters. `cmd/player` is the
+player entry point and wires the window with the real player and filesystem
+library. The application core imports no window-system or audio package.
 
 `internal/desktop` implements both `app.Input` and `app.Renderer`. Shiny owns
-native window events; the adapter translates keys and window close to App
-input events. `Render` passes each supplied snapshot to `ui.Display`, scales
+native window events; the adapter translates keyboard and window-close events
+to App events. `Render` passes each supplied snapshot to `ui.Display`, scales
 its image, and publishes it to the window. Expose and resize events reuse only
 the last image, without retaining or changing AppState. Linux uses Shiny's X11
-driver; the core and image renderer have no window-system dependency.
+driver, including from an XWayland session. This is the current frontend and
+backend for desktop development; it can also be used on a Linux phone when an
+X11 or XWayland window session is available. The window keeps the UI's 240×320
+aspect ratio when its size changes.
 
 ## State and event flow
 
 The `App` event loop is the sole owner of mutable `AppState`. The reducer computes a new state and small commands; it performs no I/O. The loop executes commands and renders a copy of the state. Adapters never mutate state, and UI never calls Player or Library.
 
 ```text
-keyboard key → input event → App → Reduce → state + command
+keyboard → window backend → App → Reduce → state + command
                                        │
                                        └→ Player.Play(track)
                                               ↓
@@ -126,14 +126,14 @@ of cancellation, with a two-second timeout. Save errors are returned alongside
 any existing application error. The entry point handles both interrupt and
 SIGTERM; abrupt termination or power loss can lose pending changes.
 
-## Adapters and future hardware
+## Adapters and future phone integration
 
 `FakeLibrary` supplies stable sample tracks. `FakePlayer` records the current
 track and reports playback events without audio. `Memory` stores settings only
 until process exit and remains available for tests. These make UI and
-application work possible without music files or a board.
+application work possible without music files or a device.
 
-`File` implements the same Storage interface and is used by both entry points.
+`File` implements the same Storage interface and is used by `cmd/player`.
 It stores the complete `SettingsState` as compact JSON. The default path is
 `openipod/settings.json` under `os.UserConfigDir()`; `--settings-file` overrides
 it. A missing file uses default settings, including volume 50%; invalid JSON
@@ -174,19 +174,9 @@ application state, starts no goroutines, and uses no background scan or
 filesystem watcher. The desktop player defaults to the filesystem library at
 `~/Music`.
 
-`input.Controls` now processes caller-supplied EC11 A/B and button snapshots
-with caller-supplied time. A full-cycle quadrature decoder handles rotation;
-stable-level debouncing handles button presses. It returns existing app events
-and owns no goroutines or application state. See [control signals](controls.md)
-for the signal contract, assumptions, and future GPIO integration.
-
-An Orange Pi input adapter can later feed real GPIO signals into that processor.
-The image renderer is hardware-independent. `internal/display/st7789` accepts
-its 240×320 RGBA output as `image.Image`, converts to RGB565 and transfers full
-frames over SPI. It imports no application or UI package, owns only device
-resources and a transfer buffer, and returns initialization/transfer errors.
-Its Linux transport uses spidev and GPIO character devices with explicit
-connection parameters. `cmd/displaytest` wires this adapter to a diagnostic
-pattern; `--dry-run` substitutes device access. See
-[display setup and image contract](display.md). The desktop player continues
-to exercise the existing app and MP3 player through its native window.
+Use keyboard input on a Linux laptop or in QEMU during development. The
+physical test targets are the Redmi 4X (`santoni`) and Google Pixel 4a
+(`sunfish`) running Nura. See the [Nura guide](phone.md) for launch
+requirements and the [test plan](testing.md#runtime-test-matrix) for device
+checks. Future touch and phone button handling should translate input into
+typed events at the `app.Input` boundary so that App continues to own state.
