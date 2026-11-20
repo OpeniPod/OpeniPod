@@ -3,18 +3,16 @@
 `internal/input.Controls` converts EC11 A/B levels and logical encoder, Back,
 and Play/Pause button presses into the existing `app.Event` types. It neither
 reads GPIO nor changes `AppState`. The keyboard backend remains available.
-App continues to decide what scrolling means on each screen: EC11 rotation
-navigates selections, while in Now Playing each detent seeks by five seconds.
-The encoder's Select, Back and Play/Pause buttons retain their existing
-actions. Track selection on the board uses the Tracks screen.
+App continues to decide what scrolling means on each screen. In master,
+`Scroll` is reserved for menu navigation; desktop keyboard arrows provide
+seeking and track switching. EC11 seek behavior belongs to the
+`platform/orange-pi` branch, not master.
 
 ## Playback controls
 
-On the desktop, Left and Right seek by five seconds. Shift+Left and
+On a laptop or in QEMU, Left and Right seek by five seconds. Shift+Left and
 Shift+Right change tracks; `h` and `n` remain aliases for previous and next.
-On the board, each EC11 detent seeks by five seconds while Now Playing is
-visible and navigates the selected item on other screens. To change tracks on
-the board, open Tracks and select the desired track.
+The EC11 on `platform/orange-pi` retains its hardware-specific control behavior.
 
 ## Decoding policy
 

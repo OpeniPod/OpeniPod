@@ -120,8 +120,6 @@ func TestSeekInputsRequestRelativeSeek(t *testing.T) {
 		event Event
 		delta time.Duration
 	}{
-		{name: "encoder forward", event: Scroll{Delta: 1}, delta: SeekStep},
-		{name: "encoder backward", event: Scroll{Delta: -1}, delta: -SeekStep},
 		{name: "keyboard forward", event: SeekBy{Delta: SeekStep}, delta: SeekStep},
 		{name: "keyboard backward", event: SeekBy{Delta: -SeekStep}, delta: -SeekStep},
 	} {
@@ -152,6 +150,20 @@ func TestSeekIgnoredWithoutActiveTrack(t *testing.T) {
 				t.Fatalf("state %+v event %#v produced commands %#v, want none", state, event, commands)
 			}
 		}
+	}
+}
+
+func TestScrollInNowPlayingDoesNotSeek(t *testing.T) {
+	state := AppState{
+		Screen: ScreenNowPlaying,
+		Player: PlayerState{HasTrack: true, Status: StatusPlaying},
+	}
+	got, commands := Reduce(state, Scroll{Delta: 1})
+	if len(commands) != 0 {
+		t.Fatalf("Scroll produced commands %#v, want none", commands)
+	}
+	if got.Player.Position != state.Player.Position {
+		t.Fatalf("Scroll changed position from %s to %s", state.Player.Position, got.Player.Position)
 	}
 }
 

@@ -47,11 +47,12 @@ type Player struct {
 	volume     *effects.Volume
 	equalizer  *equalizer
 
-	track           music.Track
-	volumeLevel     int
-	equalizerPreset app.EqualizerPreset
-	playbackID      uint64
-	playbackStop    chan struct{}
+	track            music.Track
+	volumeLevel      int
+	equalizerPreset  app.EqualizerPreset
+	playbackID       uint64
+	playbackStop     chan struct{}
+	playbackFinished bool
 }
 
 // resetTrackLocked clears the current playback state. The caller must hold p.mu.
@@ -154,6 +155,7 @@ func (p *Player) Play(ctx context.Context, track music.Track) error {
 	p.streamer = streamer
 	p.streamRate = format.SampleRate
 	p.track = track
+	p.playbackFinished = false
 
 	resampled := beep.Resample(4, format.SampleRate, sampleRate, streamer)
 	p.resampler = resampled
@@ -224,6 +226,7 @@ func (p *Player) stopCurrentPlayback() error {
 
 	streamer := p.streamer
 	p.resetTrackLocked()
+	p.playbackFinished = false
 
 	speaker.Clear()
 	p.mu.Unlock()
@@ -366,6 +369,9 @@ func (p *Player) Seek(ctx context.Context, delta time.Duration) error {
 		return ErrClosed
 	}
 	if p.streamer == nil || p.ctrl == nil || p.streamRate <= 0 {
+		if p.playbackFinished {
+			return nil
+		}
 		return errors.New("no track is playing")
 	}
 	if err := ctx.Err(); err != nil {
@@ -374,6 +380,10 @@ func (p *Player) Seek(ctx context.Context, delta time.Duration) error {
 
 	speaker.Lock()
 	position := p.streamer.Position()
+	if position >= p.streamer.Len() {
+		speaker.Unlock()
+		return nil
+	}
 	target := seekTarget(p.streamRate, position, p.streamer.Len(), p.track.Duration, delta)
 	err := p.streamer.Seek(target)
 	if err != nil {
@@ -402,8 +412,8 @@ func seekTarget(rate beep.SampleRate, position, length int, duration, delta time
 		targetTime += delta
 	}
 	target := rate.N(targetTime)
-	if target > length {
-		return length
+	if length > 0 && target >= length {
+		return length - 1
 	}
 	if target < 0 {
 		return 0
@@ -473,6 +483,7 @@ func (p *Player) finishPlayback(playbackID uint64, streamer beep.StreamSeekClose
 
 	p.resetTrackLocked()
 	p.playbackStop = nil
+	p.playbackFinished = true
 	p.mu.Unlock()
 
 	closeErr := errors.Join(streamer.Err(), streamer.Close())

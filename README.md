@@ -167,11 +167,10 @@ levels and time; real GPIO is not connected yet. See
 | `q` | Quit |
 
 Open **Tracks** and choose a real MP3 from the filesystem library to play it
-and view its progress in **Now Playing**. On the board, rotate the EC11 in
-**Now Playing** to seek by 5 seconds per detent; on other screens it navigates
-the selection. To change tracks on the board, open **Tracks** and select a
-track. Library updates run synchronously and replace the track list on success.
-Volume settings persist across restarts.
+and view its progress in **Now Playing**. On a laptop or in QEMU, Left and
+Right seek by five seconds, Shift+Left and Shift+Right switch tracks, and
+`h` and `n` are track aliases. Library updates run synchronously and replace
+the track list on success. Volume settings persist across restarts.
 
 ## Checks
 

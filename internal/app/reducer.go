@@ -39,8 +39,6 @@ func Reduce(state AppState, event Event) (AppState, []command) {
 			state.Navigation.TrackIndex = clamp(state.Navigation.TrackIndex+e.Delta, 0, max(0, len(state.Library.Tracks)-1))
 		case ScreenSettings:
 			state.Navigation.SettingsIndex = clamp(state.Navigation.SettingsIndex+e.Delta, 0, settingsMenuItemCount-1)
-		case ScreenNowPlaying:
-			return seek(state, time.Duration(e.Delta)*SeekStep)
 		}
 	case SelectPressed:
 		switch state.Screen {

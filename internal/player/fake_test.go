@@ -22,7 +22,7 @@ func TestSeekTargetMovesAndClamps(t *testing.T) {
 		{name: "backward", position: rate.N(5 * time.Second), delta: -app.SeekStep, want: rate.N(0)},
 		{name: "forward", position: rate.N(2 * time.Second), delta: app.SeekStep, want: rate.N(7 * time.Second)},
 		{name: "clamp at start", position: rate.N(2 * time.Second), delta: -app.SeekStep, want: rate.N(0)},
-		{name: "clamp at end", position: rate.N(8 * time.Second), delta: app.SeekStep, want: length},
+		{name: "clamp at end", position: rate.N(8 * time.Second), delta: app.SeekStep, want: length - 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := seekTarget(rate, tc.position, length, 10*time.Second, tc.delta)
