@@ -15,8 +15,11 @@ type BackPressed struct{}
 type PlayPausePressed struct{}
 type NextPressed struct{}
 type PreviousPressed struct{}
+type SeekBy struct{ Delta time.Duration }
 type VolumeChanged struct{ Delta int }
 type QuitRequested struct{}
+
+const SeekStep = 5 * time.Second
 
 type PlaybackStarted struct{ Track music.Track }
 type PlaybackPaused struct{}
@@ -35,6 +38,7 @@ func (BackPressed) isEvent()             {}
 func (PlayPausePressed) isEvent()        {}
 func (NextPressed) isEvent()             {}
 func (PreviousPressed) isEvent()         {}
+func (SeekBy) isEvent()                  {}
 func (VolumeChanged) isEvent()           {}
 func (QuitRequested) isEvent()           {}
 func (PlaybackStarted) isEvent()         {}

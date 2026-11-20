@@ -1,7 +1,8 @@
 # Controls
 
 Focus the player window to use these keys on a laptop, in QEMU, or with
-a keyboard connected to a phone.
+a keyboard connected to a phone. `Scroll` is reserved for menu navigation;
+use the arrow keys below for playback controls.
 
 | Key | Action |
 | --- | --- |
@@ -10,8 +11,9 @@ a keyboard connected to a phone.
 | Enter or keypad Enter | Select the current item |
 | `b` or Escape | Return to Home |
 | `p` or Space | Play or pause |
-| `n` or Right Arrow | Play the next track |
-| `h` or Left Arrow | Play the previous track |
+| Left / Right Arrow | Seek backward / forward by 5 seconds |
+| Shift+Left / Shift+Right | Play the previous / next track |
+| `h` / `n` | Play the previous / next track |
 | `+` / `=` or keypad `+` | Increase player volume by 10% |
 | `-` or keypad `-` | Decrease player volume by 10% |
 | `q` or Ctrl+C | Quit |

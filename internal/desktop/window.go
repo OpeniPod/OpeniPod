@@ -53,7 +53,7 @@ func Run(scale int, run func(*Window) error) (runErr error) {
 			Height: ui.ScreenHeight * scale,
 		})
 		if err != nil {
-			runErr = fmt.Errorf("open window (Linux requires an X11 display): %w", err)
+			runErr = fmt.Errorf("open desktop window: %w", err)
 			return
 		}
 		defer native.Release()

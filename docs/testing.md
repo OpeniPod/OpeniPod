@@ -15,7 +15,30 @@ run. Use `make all` locally for the same checks and build.
 
 ## Test coverage
 
-Reducer unit tests cover navigation bounds, volume bounds and commands, library loading, playback events, and Back. The reducer does no I/O, so these tests use plain values. The application integration test feeds typed input events into a real App with FakeLibrary, FakePlayer, MemoryStorage, and a small observing UI. It checks that selecting a track reaches FakePlayer and returns as a rendered playing state.
+`internal/display/st7789` uses recording/erroring transports and substitute
+SPI/GPIO operations to check ST7789V initialization, full 240×320 RGB565 frames,
+image bounds, address windows, chunking, error propagation and resource cleanup.
+`cmd/displaytest` tests a complete diagnostic dry-run without device nodes. See
+[display verification](display.md) for Linux launch commands and the orientation,
+colors, offsets and wiring checks deferred until delivery.
+
+`internal/input/controls_test.go` supplies EC11 A/B and button snapshots with
+controlled timestamps. It checks full cycles in both directions, bounce,
+reversals, partial and invalid sequences, startup synchronization, fast
+rotation, independent button debounce, release/rearm, held buttons, and stale
+timestamps without real delays. These tests exercise software input processing;
+they do not require real GPIO. In master, `Scroll` is for menu navigation only.
+
+Reducer unit tests cover navigation bounds, volume bounds and commands, seeking
+and clamping, library loading, playback events, and Back. The reducer does no
+I/O, so these tests use plain values. The application integration test feeds
+typed input events into a real App with FakeLibrary, FakePlayer, MemoryStorage,
+and a small observing UI. It checks that selecting a track reaches FakePlayer
+and returns as a rendered playing state; seek events reach the player fake.
+
+Run manual keyboard checks on a laptop or in QEMU: Left and Right seek by five
+seconds, Shift+Left and Shift+Right switch tracks, and `h` and `n` switch
+tracks without an EC11.
 
 Fakes let contributors test the application without audio files or device hardware. Add tests for observable behavior at the appropriate boundary. For event-loop changes, check cancellation, blocked sends, channel closure, and race behavior. Do not mock hardware behavior into unit tests merely to increase test count.
 
