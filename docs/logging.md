@@ -1,8 +1,8 @@
 # Diagnostic logging
 
 This records the decision for issue #6 and the implementation for issue #7.
-No music player hardware is required. The current fake backends produce the
-same diagnostic events as other implementations of the application interfaces.
+Run logging checks on the laptop or in the Nura VM. The fake backends let
+tests exercise diagnostic events without opening an audio device.
 
 ## Decision and record format
 
@@ -89,7 +89,7 @@ development sessions, delete/archive it when no player process is writing,
 or apply external rotation. Use the managed journal below for unattended
 device runs. Existing file/directory permissions are not modified.
 
-## Linux journal with the desktop window
+## Linux journal in a graphical session
 
 Prerequisites: Linux, Go 1.23+, bash, `systemd-cat`, `journalctl`, a running
 `systemd-journald`, an X11 or XWayland session, and a working audio device.
@@ -103,7 +103,7 @@ go build -o player ./cmd/player
 ```
 
 Only stderr is redirected to `systemd-cat`; the graphical window is displayed
-by the desktop session. Keep stderr connected to the journal collector so
+by the graphical session. Keep stderr connected to the journal collector so
 diagnostic records are not mixed into shell output.
 
 The journal handler emits one JSON line prefixed with a syslog priority:
@@ -140,15 +140,16 @@ Review exports for private paths/system information before sharing them.
 ### Persistence, size and old records
 
 [`deploy/journald/60-openipod.conf`](../deploy/journald/60-openipod.conf)
-is a device configuration example: persistent storage, a 64 MiB system
-journal target, 128 MiB free-space reserve, 8 MiB journal files, a 16 MiB
-runtime target and seven-day retention. It disables forwarding to the console.
+is an example for a dedicated player running systemd. It sets persistent
+storage, a 64 MiB system journal target, 128 MiB free-space reserve, 8 MiB
+journal files, a 16 MiB runtime target and seven-day retention. It disables
+forwarding to the console.
 
 These are provisional defaults, following the
 [maintainer's guidance in #6](https://github.com/OpeniPod/OpeniPod/issues/6#issuecomment-6100887514).
 The final device-specific values will be chosen later. The starting values
 keep diagnostic storage modest, reserve space for other data, and retain
-recent debugging history. They are not measurements of the target hardware
+recent debugging history. They are not measurements on the Redmi 4X or Pixel 4a
 or a guarantee of seven days of history: size limits can remove older
 archived records sooner. No Go code change is needed to tune this drop-in.
 
@@ -222,8 +223,7 @@ with the example configuration; the checks did not exercise a full OS boot.
   journal configuration reported no unknown/invalid settings.
 
 Full Linux reboot persistence and useful kernel records were not verified.
-Check them on a Linux computer/VM using the commands above; no device
-hardware is required.
+Check them in the Nura VM using the commands above.
 
 ## References
 

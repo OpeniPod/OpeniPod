@@ -1,10 +1,13 @@
 # OpeniPod
 
-OpeniPod is a team learning project for a standalone music player inspired by the iPod. The intended device uses an Orange Pi Zero, a small display, physical controls, local music, and Linux. The desktop app has a working audio player; the SPI display adapter is implemented and awaits hardware validation.
+OpeniPod is an iPod-inspired player for local music on Linux phones running
+Nura (formerly postmarketOS). The Redmi 4X and Google Pixel 4a are our
+physical test targets. The [Nura guide](docs/phone.md) covers running the
+player in QEMU and on a phone.
 
-The desktop app provides an interactive graphical window, keyboard input, a
-filesystem music library, real MP3 playback, and file-backed volume and
-equalizer settings. Fake adapters remain available for tests.
+The current Go app provides a graphical window, a local music library, MP3
+playback, and persistent volume and equalizer settings. Use the keyboard
+to develop and test on a laptop or in QEMU.
 
 ## Build and run
 
@@ -62,9 +65,16 @@ directory and replace the index.
 
 The library indexes regular files with `.mp3`, `.flac`, `.wav`, `.ogg`, `.m4a`,
 and `.aac` extensions, ignoring case; only MP3 files can currently be played.
-Titles are filenames including extensions; artist and album metadata are not
-read. When an MP3 starts playing, the decoder supplies its duration so Now
-Playing can show the total time and progress.
+Scans read title, artist, album, track number and, where available, duration
+into the library index. Missing or blank titles fall back to filenames including
+extensions; missing artist, album and track number remain empty/zero.
+MP3 and ADTS AAC use ID3v1/ID3v2 tags (`github.com/dhowden/tag`); FLAC and
+Ogg Vorbis/Opus/FLAC use Vorbis comments; M4A uses iTunes metadata; WAV uses
+RIFF INFO or embedded ID3. Damaged optional tags produce a diagnostic warning
+and keep the recognized audio file in the library.
+Duration comes from stream/container headers or audio frame counts without
+decoding samples; unknown duration remains zero. At playback, the MP3 decoder
+supplies the playing track's duration to Now Playing.
 Files are sorted lexicographically by path within the directory. Each track
 has an absolute, cleaned path and a stable ID derived from that path. Renaming
 or moving a file changes its ID. Symbolic links inside the directory are
@@ -81,7 +91,8 @@ Unrecognized files (including text renamed to an audio extension and video-only
 MP4 renamed to `.m4a`) are skipped with a warning containing the path and
 reason. Missing song tags do not prevent recognition. This recognizes the
 format without decoding or checking the entire file for damage. Existing index
-entries are checked only after Update Library.
+entries and metadata are read again only after Update Library. Older indexes
+remain usable; choose Update Library to populate their metadata and duration.
 
 An empty directory or one containing only unsupported files gives an empty
 track list. A missing directory, a file supplied as the directory, or a read
@@ -119,39 +130,13 @@ Diagnostics default to a separate JSON file at
 detail, and `--log-file` to choose a development file. Linux journal setup,
 retention and viewing commands are in [diagnostic logging](docs/logging.md).
 
-## Desktop window
-
-The player renders each application state to a 240×320 RGBA frame and displays
-it in the native window:
-
-```sh
-make run
-# Choose your music directory and initial window scale:
-go run ./cmd/player --music-dir "/path/to/Music" --scale 2
-```
-
-The graphical player uses the real audio player and filesystem library.
-`--settings-file` selects the settings file; by default it uses the user config
-directory's `openipod/settings.json`.
-
-Focus the window and use the keys in the controls table below. Close the
-window, press `q`, or use Ctrl+C to quit and save pending settings. Mouse
-navigation and on-screen buttons are not implemented.
-
-## SPI display
-
-The ST7789V SPI adapter accepts the same 240×320 image as the desktop UI.
-`go run ./cmd/displaytest --dry-run` checks initialization and frame transfer
-with a substitute transport. Linux setup, connection options and the hardware
-test command are in [display adapter](docs/display.md). The desktop player
-continues to use its native window.
-
 ## Controls
 
 Software processing of EC11 rotation and encoder, Back, and Play/Pause buttons
 is available separately from desktop keyboard input. Tests supply signal
 levels and time; real GPIO is not connected yet. See
-[control signals](docs/controls.md) for the decoder policy and integration API.
+[control signals](docs/controls.md) for the decoder policy, integration API,
+and phone-input status.
 
 | Key | Action |
 | --- | --- |

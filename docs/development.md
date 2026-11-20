@@ -8,9 +8,10 @@ the loop and executes side effects. `internal/music` holds shared music data.
 
 To add an event, define a concrete type in `event.go`, add its `isEvent`
 method, handle it in `Reduce`, and add a focused transition test. Map a
-keyboard key in `internal/desktop/keys.go` or a hardware signal in
-`internal/input` to that event. If the event requires I/O, have the reducer
-return a small command and execute it in `App`; keep I/O out of the reducer.
+keyboard key in `internal/desktop/keys.go` to that event. Touch input and
+physical phone keys can be mapped when their phone integration is added. If the
+event requires I/O, have the reducer return a small command and execute it in
+`App`; keep I/O out of the reducer.
 
 To add a backend, implement the consumer interface in `internal/app/app.go`
 and wire the implementation in `cmd/player/main.go`. Keep interfaces small
@@ -64,3 +65,7 @@ can be pointed elsewhere with `--music-dir`. On Linux, launch from an X11
 session or Wayland with XWayland, with the same audio build dependencies
 described in the README. `--scale` sets the initial window scale from 1 to 4
 (default 2).
+
+For Nura setup and the Redmi 4X (`santoni`) and Pixel 4a (`sunfish`) build and
+run steps, see [phone build and run](phone.md). For target-specific manual
+checks, see the [runtime test matrix](testing.md#runtime-test-matrix).

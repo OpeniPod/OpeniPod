@@ -79,8 +79,11 @@ func TestFilesystemLoadDiscoversSupportedFiles(t *testing.T) {
 			t.Errorf("track %d ID = %q, want non-empty unique ID", i, track.ID)
 		}
 		seenIDs[track.ID] = true
-		if track.Artist != "" || track.Album != "" || track.TrackNum != 0 || track.Duration != 0 {
+		if track.Artist != "" || track.Album != "" || track.TrackNum != 0 {
 			t.Errorf("track %d has unexpected metadata: %+v", i, track)
+		}
+		if track.Duration <= 0 {
+			t.Errorf("track %d has no scanned duration: %+v", i, track)
 		}
 	}
 }
@@ -115,7 +118,7 @@ func TestFilesystemLoadValidatesMP3ContentInMixedDirectory(t *testing.T) {
 		t.Fatalf("tracks = %v, want %v", got, wantTitles)
 	}
 	for _, track := range tracks {
-		if track.Title == "valid.mp3" && (track.Artist != "" || track.Album != "" || track.TrackNum != 0 || track.Duration != 0) {
+		if track.Title == "valid.mp3" && (track.Artist != "" || track.Album != "" || track.TrackNum != 0) {
 			t.Fatalf("untagged MP3 has unexpected metadata: %+v", track)
 		}
 	}

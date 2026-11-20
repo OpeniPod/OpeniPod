@@ -224,11 +224,15 @@ func load(ctx context.Context, absoluteRoot string, files fs.FS) ([]music.Track,
 			slog.WarnContext(ctx, "skipping unrecognized audio file", "path", absolutePath, "reason", err)
 			return nil
 		}
-		tracks = append(tracks, music.Track{
+		track := music.Track{
 			ID:    music.TrackID(fmt.Sprintf("%x", sha256.Sum256([]byte(absolutePath)))),
 			Path:  absolutePath,
 			Title: entry.Name(),
-		})
+		}
+		if err := readTrackMetadata(ctx, files, name, &track); err != nil {
+			return fmt.Errorf("read metadata %s: %w", absolutePath, err)
+		}
+		tracks = append(tracks, track)
 		return nil
 	})
 	if err != nil {
