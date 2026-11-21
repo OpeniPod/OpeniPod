@@ -1,8 +1,10 @@
 package ui
 
 import (
+	"fmt"
 	"image"
 	"image/color"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -102,14 +104,14 @@ func TestSettingsSelectionFollowsSelectedItem(t *testing.T) {
 				Screen:     app.ScreenSettings,
 				Navigation: app.NavigationState{SettingsIndex: test.selected},
 			})
-			firstWant, secondWant := colorBackground, colorAccent
+			firstWant, secondWant := colorPanel, colorAccent
 			if test.selected == 0 {
-				firstWant, secondWant = colorAccent, colorBackground
+				firstWant, secondWant = colorAccent, colorPanel
 			}
-			if got := img.RGBAAt(margin+1, 124); got != firstWant {
+			if got := img.RGBAAt(margin+1, 70); got != firstWant {
 				t.Errorf("Update Library marker = %v, want %v", got, firstWant)
 			}
-			if got := img.RGBAAt(margin+1, 174); got != secondWant {
+			if got := img.RGBAAt(margin+1, 120); got != secondWant {
 				t.Errorf("Equalizer marker = %v, want %v", got, secondWant)
 			}
 		})
@@ -125,7 +127,7 @@ func TestSettingsRendersEqualizerPreset(t *testing.T) {
 			Settings:   app.SettingsState{Equalizer: preset},
 		}
 	}
-	region := image.Rect(margin+11, 187, contentRight, 207)
+	region := image.Rect(margin+11, 132, contentRight, 153)
 	off := display.Render(settingsState(app.EqualizerOff))
 	bassBoost := display.Render(settingsState(app.EqualizerBassBoost))
 	vocal := display.Render(settingsState(app.EqualizerVocal))
@@ -176,6 +178,114 @@ func TestLongErrorKeepsFooterVisible(t *testing.T) {
 	if countPixelsInRect(img, image.Rect(margin, errorTop, contentRight, footerRuleY-5), colorErrorPanel) == 0 {
 		t.Fatal("error message panel was not rendered")
 	}
+}
+
+func TestControlsUseVisibleAbsoluteTrackRows(t *testing.T) {
+	tracks := make([]music.Track, 9)
+	for i := range tracks {
+		tracks[i] = music.Track{ID: music.TrackID(fmt.Sprintf("track-%d", i)), Title: fmt.Sprintf("Track %d", i)}
+	}
+	controls := Controls(app.AppState{
+		Screen:     app.ScreenTracks,
+		Navigation: app.NavigationState{TrackIndex: 4},
+		Library:    app.LibraryState{Tracks: tracks},
+	})
+
+	var indexes []int
+	for _, control := range controls {
+		if activated, ok := control.Event.(app.ItemActivated); ok {
+			if activated.Screen != app.ScreenTracks {
+				t.Errorf("track control screen = %v, want Tracks", activated.Screen)
+			}
+			indexes = append(indexes, activated.Index)
+		}
+	}
+	if !reflect.DeepEqual(indexes, []int{1, 2, 3, 4}) {
+		t.Fatalf("visible track indexes = %v, want [1 2 3 4]", indexes)
+	}
+	if !hasControlEvent(controls, app.Scroll{Delta: -4}) ||
+		!hasControlEvent(controls, app.Scroll{Delta: 4}) {
+		t.Fatal("track pager controls did not expose both +/-4 actions")
+	}
+
+	lastPage := Controls(app.AppState{
+		Screen:     app.ScreenTracks,
+		Navigation: app.NavigationState{TrackIndex: 8},
+		Library:    app.LibraryState{Tracks: tracks},
+	})
+	if hasControlEvent(lastPage, app.Scroll{Delta: 4}) || !hasControlEvent(lastPage, app.Scroll{Delta: -4}) {
+		t.Fatal("last page did not omit only the disabled down action")
+	}
+}
+
+func TestControlsOmitTrackActivationForEmptyLibrary(t *testing.T) {
+	controls := Controls(app.AppState{Screen: app.ScreenTracks})
+	for _, control := range controls {
+		switch control.Event.(type) {
+		case app.ItemActivated, app.Scroll:
+			t.Fatalf("empty library exposed track action: %#v", control.Event)
+		}
+	}
+	if len(controls) != 6 {
+		t.Fatalf("empty library controls = %d, want six global controls", len(controls))
+	}
+}
+
+func TestControlsExposeTransportAndVolumeOnEveryScreen(t *testing.T) {
+	for _, screen := range []app.Screen{app.ScreenHome, app.ScreenTracks, app.ScreenNowPlaying, app.ScreenSettings} {
+		controls := Controls(app.AppState{Screen: screen})
+		for _, event := range []app.Event{
+			app.BackPressed{}, app.PreviousPressed{}, app.PlayPausePressed{}, app.NextPressed{},
+			app.VolumeChanged{Delta: -10}, app.VolumeChanged{Delta: 10},
+		} {
+			if !hasControlEvent(controls, event) {
+				t.Errorf("screen %v missing control event %#v", screen, event)
+			}
+		}
+	}
+}
+
+func TestControlsDoNotOverlapErrorPanel(t *testing.T) {
+	state := app.AppState{Screen: app.ScreenSettings, Error: "library failed"}
+	for _, control := range Controls(state) {
+		if control.Bounds.Overlaps(image.Rect(margin, errorTop, contentRight, errorBottom)) {
+			t.Fatalf("control %v overlaps error panel", control.Bounds)
+		}
+	}
+	display := newTestDisplay(t)
+	img := display.Render(state)
+	if got := img.RGBAAt(margin, errorTop); got != colorErrorPanel {
+		t.Fatalf("error panel pixel = %v, want %v", got, colorErrorPanel)
+	}
+}
+
+func TestRenderShowsUnselectedRowsAndPlaybackStatus(t *testing.T) {
+	display := newTestDisplay(t)
+	state := app.AppState{
+		Screen:     app.ScreenTracks,
+		Navigation: app.NavigationState{TrackIndex: 1},
+		Library:    app.LibraryState{Tracks: []music.Track{{Title: "one"}, {Title: "two"}}},
+		Player:     app.PlayerState{Status: app.StatusPlaying, HasTrack: true},
+	}
+	img := display.Render(state)
+	if got := img.RGBAAt(margin+1, trackFirstY); got != colorPanel {
+		t.Fatalf("unselected track row pixel = %v, want %v", got, colorPanel)
+	}
+	if got := img.RGBAAt(margin+1, trackFirstY+trackRowStep); got != colorAccent {
+		t.Fatalf("selected track marker = %v, want %v", got, colorAccent)
+	}
+	if countPixelsInRect(img, image.Rect(112, transportTop, 166, transportBottom), colorPanel) == 0 {
+		t.Fatal("playback control was not rendered")
+	}
+}
+
+func hasControlEvent(controls []Control, want app.Event) bool {
+	for _, control := range controls {
+		if reflect.DeepEqual(control.Event, want) {
+			return true
+		}
+	}
+	return false
 }
 
 func countPixels(img *image.RGBA, target color.Color) int {

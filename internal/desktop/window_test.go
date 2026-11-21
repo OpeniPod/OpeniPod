@@ -17,6 +17,7 @@ import (
 	"golang.org/x/exp/shiny/screen"
 	"golang.org/x/mobile/event/key"
 	"golang.org/x/mobile/event/lifecycle"
+	"golang.org/x/mobile/event/mouse"
 	"golang.org/x/mobile/event/paint"
 	"golang.org/x/mobile/event/size"
 )
@@ -227,7 +228,7 @@ func TestWindowConcurrentRenderingAndResize(t *testing.T) {
 	window, native := newTestWindow(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- window.Run(ctx, make(chan app.Event)) }()
+	go func() { done <- window.Run(ctx, make(chan app.Event, 64)) }()
 	var worker sync.WaitGroup
 	worker.Add(1)
 	go func() {
@@ -235,6 +236,7 @@ func TestWindowConcurrentRenderingAndResize(t *testing.T) {
 		for i := 0; i < 10; i++ {
 			native.Send(size.Event{WidthPx: 240 + i, HeightPx: 320 + i})
 			native.Send(paint.Event{})
+			native.Send(mouse.Event{X: 30, Y: 70, Button: mouse.ButtonLeft, Direction: mouse.DirPress})
 		}
 	}()
 	for i := 0; i < 10; i++ {

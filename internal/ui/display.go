@@ -20,11 +20,17 @@ const (
 	ScreenWidth  = 240
 	ScreenHeight = 320
 
-	margin       = 16
-	contentRight = ScreenWidth - margin
-	headerRuleY  = 44
-	errorTop     = 249
-	footerRuleY  = 286
+	margin          = 16
+	contentRight    = ScreenWidth - margin
+	headerRuleY     = 44
+	contentBottom   = 219
+	errorTop        = 221
+	errorBottom     = 250
+	footerRuleY     = 254
+	transportTop    = 254
+	transportBottom = 284
+	volumeTop       = 288
+	volumeBottom    = 318
 )
 
 var (
@@ -44,6 +50,128 @@ type Display struct {
 	titleFace font.Face
 	bodyFace  font.Face
 	smallFace font.Face
+}
+
+// Control describes an actionable region in the 240x320 display coordinate
+// system. Desktop adapters can scale Bounds with the rendered image and send
+// Event when a pointer press lands inside it.
+type Control struct {
+	Bounds image.Rectangle
+	Event  app.Event
+}
+
+type itemRegion struct {
+	Bounds image.Rectangle
+	Index  int
+}
+
+// screenLayout owns the geometry shared by rendering and pointer hit testing.
+// Keeping the row rectangles here prevents a visual row and its hit region from
+// drifting apart as screens are reflowed.
+type screenLayout struct {
+	homeRows      []itemRegion
+	settingsRows  []itemRegion
+	trackRows     []itemRegion
+	trackPrevious image.Rectangle
+	trackNext     image.Rectangle
+
+	back       image.Rectangle
+	previous   image.Rectangle
+	playPause  image.Rectangle
+	next       image.Rectangle
+	volumeDown image.Rectangle
+	volumeUp   image.Rectangle
+}
+
+const (
+	trackFirstY    = 53
+	trackRowStep   = 35
+	trackRowHeight = 33
+	trackMaxRows   = 4
+)
+
+func layoutFor(state app.AppState) screenLayout {
+	layout := screenLayout{
+		homeRows: []itemRegion{
+			{Bounds: image.Rect(margin, 57, contentRight, 91), Index: 0},
+			{Bounds: image.Rect(margin, 96, contentRight, 130), Index: 1},
+			{Bounds: image.Rect(margin, 135, contentRight, 169), Index: 2},
+		},
+		settingsRows: []itemRegion{
+			{Bounds: image.Rect(margin, 57, contentRight, 101), Index: 0},
+			{Bounds: image.Rect(margin, 108, contentRight, 163), Index: 1},
+		},
+		back:       image.Rect(margin, transportTop, 61, transportBottom),
+		previous:   image.Rect(63, transportTop, 110, transportBottom),
+		playPause:  image.Rect(112, transportTop, 166, transportBottom),
+		next:       image.Rect(168, transportTop, contentRight, transportBottom),
+		volumeDown: image.Rect(margin, volumeTop, 53, volumeBottom),
+		volumeUp:   image.Rect(187, volumeTop, contentRight, volumeBottom),
+	}
+
+	tracks := state.Library.Tracks
+	if len(tracks) == 0 {
+		return layout
+	}
+	selected := clamp(state.Navigation.TrackIndex, 0, len(tracks)-1)
+	start := max(0, min(selected-trackMaxRows+1, len(tracks)-trackMaxRows))
+	end := min(start+trackMaxRows, len(tracks))
+	for i := start; i < end; i++ {
+		row := i - start
+		layout.trackRows = append(layout.trackRows, itemRegion{
+			Bounds: image.Rect(margin, trackFirstY+row*trackRowStep,
+				contentRight, trackFirstY+row*trackRowStep+trackRowHeight),
+			Index: i,
+		})
+	}
+	layout.trackPrevious = image.Rect(margin, 194, 82, contentBottom)
+	layout.trackNext = image.Rect(158, 194, contentRight, contentBottom)
+	return layout
+}
+
+// Controls returns the actionable regions visible for state. Regions that are
+// not useful at the current boundary (such as paging beyond the library) are
+// intentionally omitted.
+func Controls(state app.AppState) []Control {
+	layout := layoutFor(state)
+	controls := make([]Control, 0, 12)
+	appendItems := func(rows []itemRegion, screen app.Screen) {
+		for _, row := range rows {
+			controls = append(controls, Control{
+				Bounds: row.Bounds,
+				Event:  app.ItemActivated{Screen: screen, Index: row.Index},
+			})
+		}
+	}
+	switch state.Screen {
+	case app.ScreenHome:
+		appendItems(layout.homeRows, app.ScreenHome)
+	case app.ScreenTracks:
+		appendItems(layout.trackRows, app.ScreenTracks)
+		if len(layout.trackRows) > 0 {
+			selected := clamp(state.Navigation.TrackIndex, 0, len(state.Library.Tracks)-1)
+			if selected > 0 {
+				controls = append(controls, Control{Bounds: layout.trackPrevious,
+					Event: app.Scroll{Delta: -trackMaxRows}})
+			}
+			if selected < len(state.Library.Tracks)-1 {
+				controls = append(controls, Control{Bounds: layout.trackNext,
+					Event: app.Scroll{Delta: trackMaxRows}})
+			}
+		}
+	case app.ScreenSettings:
+		appendItems(layout.settingsRows, app.ScreenSettings)
+	}
+
+	controls = append(controls,
+		Control{Bounds: layout.back, Event: app.BackPressed{}},
+		Control{Bounds: layout.previous, Event: app.PreviousPressed{}},
+		Control{Bounds: layout.playPause, Event: app.PlayPausePressed{}},
+		Control{Bounds: layout.next, Event: app.NextPressed{}},
+		Control{Bounds: layout.volumeDown, Event: app.VolumeChanged{Delta: -10}},
+		Control{Bounds: layout.volumeUp, Event: app.VolumeChanged{Delta: 10}},
+	)
+	return controls
 }
 
 func NewDisplay() (*Display, error) {
@@ -96,6 +224,7 @@ func (d *Display) Close() error {
 func (d *Display) Render(state app.AppState) *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, ScreenWidth, ScreenHeight))
 	d.fillRect(img, img.Bounds(), colorBackground)
+	layout := layoutFor(state)
 
 	d.drawText(img, d.titleFace, screenTitle(state.Screen), margin, 30, colorText)
 	d.drawText(img, d.smallFace, "OPENIPOD", contentRight-57, 27, colorAccent)
@@ -103,35 +232,37 @@ func (d *Display) Render(state app.AppState) *image.RGBA {
 
 	switch state.Screen {
 	case app.ScreenHome:
-		d.renderHome(img, state)
+		d.renderHome(img, state, layout)
 	case app.ScreenTracks:
-		d.renderTracks(img, state)
+		d.renderTracks(img, state, layout)
 	case app.ScreenNowPlaying:
 		d.renderNowPlaying(img, state)
 	case app.ScreenSettings:
-		d.renderSettings(img, state)
+		d.renderSettings(img, state, layout)
 	}
 
 	if state.Error != "" {
 		d.renderError(img, state.Error)
 	}
-	d.renderFooter(img)
+	d.renderGlobalControls(img, state, layout)
 	return img
 }
 
-func (d *Display) renderHome(img *image.RGBA, state app.AppState) {
+func (d *Display) renderHome(img *image.RGBA, state app.AppState, layout screenLayout) {
 	for i, label := range []string{"Tracks", "Now Playing", "Settings"} {
-		d.drawMenuRow(img, label, 68+i*49, i == state.Navigation.HomeIndex)
+		row := layout.homeRows[i].Bounds
+		d.drawClickableRow(img, row, i == clamp(state.Navigation.HomeIndex, 0, 2))
+		d.drawText(img, d.bodyFace, label, row.Min.X+12, row.Min.Y+23, colorText)
 	}
 	count := len(state.Library.Tracks)
 	label := "tracks"
 	if count == 1 {
 		label = "track"
 	}
-	d.drawText(img, d.smallFace, fmt.Sprintf("%d %s in library", count, label), margin, 237, colorMuted)
+	d.drawText(img, d.smallFace, fmt.Sprintf("%d %s in library", count, label), margin, 209, colorMuted)
 }
 
-func (d *Display) renderTracks(img *image.RGBA, state app.AppState) {
+func (d *Display) renderTracks(img *image.RGBA, state app.AppState, layout screenLayout) {
 	tracks := state.Library.Tracks
 	if len(tracks) == 0 {
 		d.drawText(img, d.bodyFace, "No tracks in library", margin, 92, colorText)
@@ -140,42 +271,44 @@ func (d *Display) renderTracks(img *image.RGBA, state app.AppState) {
 		return
 	}
 
-	const (
-		firstY     = 57
-		rowHeight  = 45
-		maxRows    = 4
-		titleWidth = contentRight - margin - 20
-	)
+	const titleWidth = contentRight - margin - 20
 	selected := clamp(state.Navigation.TrackIndex, 0, len(tracks)-1)
-	start := max(0, min(selected-maxRows+1, len(tracks)-maxRows))
-	end := min(start+maxRows, len(tracks))
-	for i := start; i < end; i++ {
-		y := firstY + (i-start)*rowHeight
-		row := image.Rect(margin, y, contentRight, y+rowHeight-4)
-		if i == selected {
-			d.drawSelection(img, row)
-		}
+	for _, region := range layout.trackRows {
+		i := region.Index
+		row := region.Bounds
+		d.drawClickableRow(img, row, i == selected)
 		d.drawText(img, d.bodyFace,
 			d.truncate(tracks[i].Title, titleWidth, d.bodyFace),
-			margin+10, y+17, colorText)
+			row.Min.X+10, row.Min.Y+16, colorText)
 		artist := tracks[i].Artist
 		if artist == "" {
 			artist = "Unknown artist"
 		}
 		d.drawText(img, d.smallFace,
 			d.truncate(artist, titleWidth, d.smallFace),
-			margin+10, y+33, colorMuted)
+			row.Min.X+10, row.Min.Y+29, colorMuted)
 	}
 
+	// The pager shares its rectangles with Controls. Disabled buttons remain
+	// visible as feedback, but are omitted from Controls at the boundaries.
+	if selected > 0 {
+		d.drawButton(img, layout.trackPrevious, "UP", colorText)
+	} else {
+		d.drawButton(img, layout.trackPrevious, "UP", colorMuted)
+	}
+	if selected < len(tracks)-1 {
+		d.drawButton(img, layout.trackNext, "DOWN", colorText)
+	} else {
+		d.drawButton(img, layout.trackNext, "DOWN", colorMuted)
+	}
 	d.drawText(img, d.smallFace, fmt.Sprintf("%d / %d", selected+1, len(tracks)),
-		contentRight-37, 244, colorMuted)
+		97, 210, colorMuted)
 }
 
 func (d *Display) renderNowPlaying(img *image.RGBA, state app.AppState) {
 	if !state.Player.HasTrack {
 		d.drawText(img, d.bodyFace, "Select a track to start", margin, 91, colorText)
 		d.drawText(img, d.smallFace, "Choose one from Tracks.", margin, 113, colorMuted)
-		d.renderVolume(img, state.Settings.Volume, 174)
 		return
 	}
 
@@ -207,64 +340,77 @@ func (d *Display) renderNowPlaying(img *image.RGBA, state app.AppState) {
 	}
 	d.drawText(img, d.smallFace, displayClock(state.Player.Position), bar.Min.X, 215, colorText)
 	d.drawText(img, d.smallFace, displayClock(track.Duration), bar.Max.X-31, 215, colorMuted)
-	d.renderVolume(img, state.Settings.Volume, 239)
 }
 
-func (d *Display) renderSettings(img *image.RGBA, state app.AppState) {
-	d.renderVolume(img, state.Settings.Volume, 86)
-
-	rows := []image.Rectangle{
-		image.Rect(margin, 112, contentRight, 154),
-		image.Rect(margin, 162, contentRight, 210),
+func (d *Display) renderSettings(img *image.RGBA, state app.AppState, layout screenLayout) {
+	selected := clamp(state.Navigation.SettingsIndex, 0, len(layout.settingsRows)-1)
+	for i, region := range layout.settingsRows {
+		d.drawClickableRow(img, region.Bounds, i == selected)
 	}
-	selected := clamp(state.Navigation.SettingsIndex, 0, len(rows)-1)
-	for i, row := range rows {
-		if i == selected {
-			d.drawSelection(img, row)
-		}
-	}
-	d.drawText(img, d.bodyFace, "Update Library", margin+11, 138, colorText)
-	d.drawText(img, d.bodyFace, "Equalizer", margin+11, 184, colorText)
-	d.drawText(img, d.smallFace, state.Settings.Equalizer.String(), margin+11, 201, colorAccent)
+	d.drawText(img, d.bodyFace, "Update Library", layout.settingsRows[0].Bounds.Min.X+11, 83, colorText)
+	d.drawText(img, d.bodyFace, "Equalizer", layout.settingsRows[1].Bounds.Min.X+11, 132, colorText)
+	d.drawText(img, d.smallFace, state.Settings.Equalizer.String(), layout.settingsRows[1].Bounds.Min.X+11, 151, colorAccent)
 
 	hint := "Scan music folder for changes"
 	if selected == 1 {
 		hint = "Cycle sound preset"
 	}
-	d.drawText(img, d.smallFace, hint, margin, 233, colorMuted)
-}
-
-func (d *Display) renderVolume(img *image.RGBA, volume, baseline int) {
-	volume = clamp(volume, 0, 100)
-	d.drawText(img, d.smallFace, "VOLUME", margin, baseline, colorMuted)
-	bar := image.Rect(margin+52, baseline-9, contentRight-36, baseline-2)
-	d.fillRect(img, bar, colorProgress)
-	if filled := bar.Dx() * volume / 100; filled > 0 {
-		d.fillRect(img, image.Rect(bar.Min.X, bar.Min.Y, bar.Min.X+filled, bar.Max.Y), colorAccent)
-	}
-	d.drawText(img, d.smallFace, fmt.Sprintf("%d%%", volume), bar.Max.X+7, baseline, colorText)
+	d.drawText(img, d.smallFace, hint, margin, 204, colorMuted)
 }
 
 func (d *Display) renderError(img *image.RGBA, message string) {
-	box := image.Rect(margin, errorTop, contentRight, footerRuleY-5)
+	box := image.Rect(margin, errorTop, contentRight, errorBottom)
 	d.fillRect(img, box, colorErrorPanel)
-	d.drawText(img, d.smallFace, "ERROR", box.Min.X+8, box.Min.Y+13, colorError)
-	d.drawWrapped(img, message, d.smallFace, box.Min.X+8, box.Min.Y+20,
-		box.Dx()-16, 2, colorText, 10)
+	d.drawText(img, d.smallFace, "ERROR", box.Min.X+8, box.Min.Y+11, colorError)
+	d.drawWrapped(img, message, d.smallFace, box.Min.X+8, box.Min.Y+23,
+		box.Dx()-16, 1, colorText, 10)
 }
 
-func (d *Display) renderFooter(img *image.RGBA) {
-	d.fillRect(img, image.Rect(margin, footerRuleY, contentRight, footerRuleY+1), colorPanel)
-	d.drawText(img, d.smallFace, "ENTER SELECT", margin, 307, colorMuted)
-	d.drawText(img, d.smallFace, "B BACK", contentRight-43, 307, colorMuted)
+func (d *Display) renderGlobalControls(img *image.RGBA, state app.AppState, layout screenLayout) {
+	for _, button := range []struct {
+		bounds image.Rectangle
+		label  string
+	}{
+		{layout.back, "BACK"},
+		{layout.previous, "PREV"},
+		{layout.playPause, playbackButtonLabel(state.Player.Status)},
+		{layout.next, "NEXT"},
+	} {
+		d.drawButton(img, button.bounds, button.label, colorText)
+	}
+
+	d.drawButton(img, layout.volumeDown, "-", colorText)
+	d.drawButton(img, layout.volumeUp, "+", colorText)
+	volume := clamp(state.Settings.Volume, 0, 100)
+	d.drawText(img, d.smallFace, "VOLUME", 58, volumeTop+15, colorMuted)
+	volumeBar := image.Rect(106, volumeTop+10, 157, volumeTop+17)
+	d.fillRect(img, volumeBar, colorProgress)
+	if filled := volumeBar.Dx() * volume / 100; filled > 0 {
+		d.fillRect(img, image.Rect(volumeBar.Min.X, volumeBar.Min.Y,
+			volumeBar.Min.X+filled, volumeBar.Max.Y), colorAccent)
+	}
+	d.drawText(img, d.smallFace, fmt.Sprintf("%d%%", volume), 162, volumeTop+15, colorText)
 }
 
-func (d *Display) drawMenuRow(img *image.RGBA, label string, y int, selected bool) {
-	row := image.Rect(margin, y, contentRight, y+37)
+func playbackButtonLabel(status app.PlaybackStatus) string {
+	if status == app.StatusPlaying {
+		return "PAUSE"
+	}
+	return "PLAY"
+}
+
+func (d *Display) drawClickableRow(img *image.RGBA, row image.Rectangle, selected bool) {
+	d.fillRect(img, row, colorPanel)
 	if selected {
 		d.drawSelection(img, row)
 	}
-	d.drawText(img, d.bodyFace, label, margin+12, y+24, colorText)
+}
+
+func (d *Display) drawButton(img *image.RGBA, bounds image.Rectangle, label string, c color.Color) {
+	d.fillRect(img, bounds, colorPanel)
+	width := measure(d.smallFace, label)
+	d.drawText(img, d.smallFace, label,
+		bounds.Min.X+(bounds.Dx()-width)/2, bounds.Min.Y+19, c)
 }
 
 func (d *Display) drawSelection(img *image.RGBA, row image.Rectangle) {

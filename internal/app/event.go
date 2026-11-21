@@ -10,6 +10,13 @@ import (
 type Event interface{ isEvent() }
 
 type Scroll struct{ Delta int }
+
+// ItemActivated selects and activates an absolute row index. Screen lets the
+// reducer ignore clicks queued from a screen that is no longer open.
+type ItemActivated struct {
+	Screen Screen
+	Index  int
+}
 type SelectPressed struct{}
 type BackPressed struct{}
 type PlayPausePressed struct{}
@@ -30,6 +37,7 @@ type LibraryLoadFailed struct{ Err error }
 type SettingsLoaded struct{ Settings SettingsState }
 
 func (Scroll) isEvent()                  {}
+func (ItemActivated) isEvent()           {}
 func (SelectPressed) isEvent()           {}
 func (BackPressed) isEvent()             {}
 func (PlayPausePressed) isEvent()        {}

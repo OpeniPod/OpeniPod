@@ -34,6 +34,35 @@ func Reduce(state AppState, event Event) (AppState, []command) {
 		case ScreenSettings:
 			state.Navigation.SettingsIndex = clamp(state.Navigation.SettingsIndex+e.Delta, 0, settingsMenuItemCount-1)
 		}
+	case ItemActivated:
+		if e.Screen != state.Screen {
+			break
+		}
+		valid := false
+		switch state.Screen {
+		case ScreenHome:
+			if e.Index < 0 || e.Index > 2 {
+				break
+			}
+			state.Navigation.HomeIndex = e.Index
+			valid = true
+		case ScreenTracks:
+			if e.Index < 0 || e.Index >= len(state.Library.Tracks) {
+				break
+			}
+			state.Navigation.TrackIndex = e.Index
+			valid = true
+		case ScreenSettings:
+			if e.Index < 0 || e.Index >= settingsMenuItemCount {
+				break
+			}
+			state.Navigation.SettingsIndex = e.Index
+			valid = true
+		}
+		if !valid {
+			break
+		}
+		return Reduce(state, SelectPressed{})
 	case SelectPressed:
 		switch state.Screen {
 		case ScreenHome:
