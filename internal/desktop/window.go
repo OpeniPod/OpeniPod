@@ -16,22 +16,24 @@ import (
 	"golang.org/x/image/draw"
 	"golang.org/x/mobile/event/key"
 	"golang.org/x/mobile/event/lifecycle"
+	"golang.org/x/mobile/event/mouse"
 	"golang.org/x/mobile/event/paint"
 	"golang.org/x/mobile/event/size"
 )
 
 // Window implements App's input and renderer interfaces. App owns its state;
-// this adapter only retains the last rendered image for expose and resize events.
+// this adapter retains the last image and its actionable regions, not AppState.
 type Window struct {
 	screen  screen.Screen
 	native  screen.Window
 	display *ui.Display
 
 	// Render runs in App's loop; resize and expose run in its input worker.
-	mu     sync.Mutex
-	buffer screen.Buffer
-	frame  *image.RGBA
-	size   image.Point
+	mu       sync.Mutex
+	buffer   screen.Buffer
+	frame    *image.RGBA
+	size     image.Point
+	controls []ui.Control
 }
 
 var (
@@ -80,6 +82,7 @@ func (w *Window) Render(state app.AppState) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.frame = w.display.Render(state)
+	w.controls = ui.Controls(state)
 	return w.present()
 }
 
@@ -109,6 +112,8 @@ func (w *Window) Run(ctx context.Context, events chan<- app.Event) error {
 		switch e := event.(type) {
 		case key.Event:
 			input, _ = keyEvent(e)
+		case mouse.Event:
+			input = w.pointerEvent(e)
 		case lifecycle.Event:
 			if e.To == lifecycle.StageDead {
 				input = app.QuitRequested{}
@@ -133,6 +138,31 @@ func (w *Window) Run(ctx context.Context, events chan<- app.Event) error {
 			if _, quit := input.(app.QuitRequested); quit {
 				return nil
 			}
+		}
+	}
+	return nil
+}
+
+// pointerEvent uses the same fitted rectangle as present, including letterbox
+// offsets. The mutex keeps the hit regions and window size in the same frame.
+func (w *Window) pointerEvent(event mouse.Event) app.Event {
+	if event.Button != mouse.ButtonLeft || event.Direction != mouse.DirPress {
+		return nil
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	viewport := fit(w.size)
+	if viewport.Empty() || event.X < float32(viewport.Min.X) || event.X >= float32(viewport.Max.X) ||
+		event.Y < float32(viewport.Min.Y) || event.Y >= float32(viewport.Max.Y) {
+		return nil
+	}
+	point := image.Pt(
+		int((event.X-float32(viewport.Min.X))*ui.ScreenWidth/float32(viewport.Dx())),
+		int((event.Y-float32(viewport.Min.Y))*ui.ScreenHeight/float32(viewport.Dy())),
+	)
+	for _, control := range w.controls {
+		if point.In(control.Bounds) {
+			return control.Event
 		}
 	}
 	return nil
