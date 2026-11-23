@@ -26,36 +26,35 @@ interfaces; `cmd/player` supplies their concrete implementations and the
 desktop window.
 
 `music` has the small `Track` type. `app` defines events, `AppState`, the reducer,
-and consumer-side interfaces. `desktop` converts native window keyboard and
-close events into App events. `ui` renders a state snapshot as a 240×320 RGBA
-image using an embedded font; `desktop` presents that image in a native window.
+and consumer-side interfaces. `desktop` converts keyboard, pointer, and
+window-close events into App events. `ui` renders a state snapshot as a
+240×320 RGBA image using an embedded font and supplies the control rectangles.
+`desktop` presents the image in a native window.
 `library` supplies filesystem and fake adapters; `player` supplies real and
 fake players; `storage` supplies file and memory adapters. `cmd/player` is the
 player entry point and wires the window with the real player and filesystem
 library. The application core imports no window-system or audio package.
 
 `internal/desktop` implements both `app.Input` and `app.Renderer`. Shiny owns
-native window events; the adapter translates keyboard and window-close events
-to App events. `Render` passes each supplied snapshot to `ui.Display`, scales
-its image, and publishes it to the window. Expose and resize events reuse only
-the last image, without retaining or changing AppState. Linux uses Shiny's X11
-driver, including from an XWayland session. This is the current frontend and
-backend for desktop development; it can also be used on a Linux phone when an
-X11 or XWayland window session is available. The window keeps the UI's 240×320
-aspect ratio when its size changes.
+native window events. The adapter retains the last image and control rectangles.
+It uses the same scale and offset to project the image and map clicks back
+to the logical display. Expose and resize events reuse the last image.
+Linux uses Shiny's X11 driver on both the desktop and a Linux phone with an
+X11 or XWayland session. The window keeps the UI's 240×320 aspect ratio
+when its size changes.
 
 ## State and event flow
 
 The `App` event loop is the sole owner of mutable `AppState`. The reducer computes a new state and small commands; it performs no I/O. The loop executes commands and renders a copy of the state. Adapters never mutate state, and UI never calls Player or Library.
 
 ```text
-keyboard → window backend → App → Reduce → state + command
-                                       │
-                                       └→ Player.Play(track)
-                                              ↓
-                                        PlaybackStarted event
-                                              ↓
-                                        App → Reduce → Render(state)
+keyboard or pointer → window backend → App → Reduce → state + command
+                                              │
+                                              └→ Player.Play(track)
+                                                     ↓
+                                               PlaybackStarted event
+                                                     ↓
+                                               App → Reduce → Render(state)
 ```
 
 Events are Go types, not string tags. `SelectPressed` on a track requests
@@ -174,9 +173,10 @@ application state, starts no goroutines, and uses no background scan or
 filesystem watcher. The desktop player defaults to the filesystem library at
 `~/Music`.
 
-Use keyboard input on a Linux laptop or in QEMU during development. The
+Use a keyboard or pointer on a Linux laptop or in QEMU during development. The
 physical test targets are the Redmi 4X (`santoni`) and Google Pixel 4a
 (`sunfish`) running Nura. See the [Nura guide](phone.md) for launch
 requirements and the [test plan](testing.md#runtime-test-matrix) for device
-checks. Future touch and phone button handling should translate input into
-typed events at the `app.Input` boundary so that App continues to own state.
+checks. Phone sessions that deliver taps as pointer clicks use the same
+window adapter. A future adapter for physical phone buttons can emit typed
+events at the `app.Input` boundary.
