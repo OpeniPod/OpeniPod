@@ -34,7 +34,15 @@ type Window struct {
 	frame    *image.RGBA
 	size     image.Point
 	controls []ui.Control
+	press    *pointerPress
 }
+
+type pointerPress struct {
+	control ui.Control
+	point   image.Point
+}
+
+const dragTolerance = 6
 
 var (
 	_ app.Input    = (*Window)(nil)
@@ -115,6 +123,9 @@ func (w *Window) Run(ctx context.Context, events chan<- app.Event) error {
 		case mouse.Event:
 			input = w.pointerEvent(e)
 		case lifecycle.Event:
+			if e.To < lifecycle.StageFocused {
+				w.cancelPointer()
+			}
 			if e.To == lifecycle.StageDead {
 				input = app.QuitRequested{}
 			}
@@ -143,35 +154,91 @@ func (w *Window) Run(ctx context.Context, events chan<- app.Event) error {
 	return nil
 }
 
-// pointerEvent uses the same fitted rectangle as present, including letterbox
-// offsets. The mutex keeps the hit regions and window size in the same frame.
+// pointerEvent activates a control after a matching, non-dragging click. The
+// mutex keeps the hit regions and window size in the same frame.
 func (w *Window) pointerEvent(event mouse.Event) app.Event {
-	if event.Button != mouse.ButtonLeft || event.Direction != mouse.DirPress {
-		return nil
-	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	viewport := fit(w.size)
-	if viewport.Empty() || event.X < float32(viewport.Min.X) || event.X >= float32(viewport.Max.X) ||
-		event.Y < float32(viewport.Min.Y) || event.Y >= float32(viewport.Max.Y) {
-		return nil
-	}
-	point := image.Pt(
-		int((event.X-float32(viewport.Min.X))*ui.ScreenWidth/float32(viewport.Dx())),
-		int((event.Y-float32(viewport.Min.Y))*ui.ScreenHeight/float32(viewport.Dy())),
-	)
-	for _, control := range w.controls {
-		if point.In(control.Bounds) {
+
+	switch {
+	case event.Button == mouse.ButtonLeft && event.Direction == mouse.DirPress:
+		w.press = nil
+		point, ok := w.logicalPoint(event)
+		if !ok {
+			return nil
+		}
+		control, ok := controlAt(w.controls, point)
+		if ok {
+			w.press = &pointerPress{control: control, point: point}
+		}
+	case event.Direction == mouse.DirNone && w.press != nil:
+		point, ok := w.logicalPoint(event)
+		if !ok || dragged(w.press.point, point) {
+			w.press = nil
+		}
+	case event.Button == mouse.ButtonLeft && event.Direction == mouse.DirRelease:
+		press := w.press
+		w.press = nil
+		if press == nil {
+			return nil
+		}
+		point, ok := w.logicalPoint(event)
+		if !ok || dragged(press.point, point) {
+			return nil
+		}
+		control, ok := controlAt(w.controls, point)
+		// UI controls contain comparable input events.
+		if ok && control == press.control {
 			return control.Event
 		}
 	}
 	return nil
 }
 
+// logicalPoint maps the center of the destination pixel under the pointer to
+// the source pixel selected by draw.NearestNeighbor.Scale. This keeps hit
+// testing aligned with the displayed image, including fractional scaling.
+func (w *Window) logicalPoint(event mouse.Event) (image.Point, bool) {
+	viewport := fit(w.size)
+	if viewport.Empty() || event.X < float32(viewport.Min.X) || event.X >= float32(viewport.Max.X) ||
+		event.Y < float32(viewport.Min.Y) || event.Y >= float32(viewport.Max.Y) {
+		return image.Point{}, false
+	}
+	destX := int(event.X) - viewport.Min.X
+	destY := int(event.Y) - viewport.Min.Y
+	return image.Pt(
+		(2*destX+1)*ui.ScreenWidth/(2*viewport.Dx()),
+		(2*destY+1)*ui.ScreenHeight/(2*viewport.Dy()),
+	), true
+}
+
+func controlAt(controls []ui.Control, point image.Point) (ui.Control, bool) {
+	for _, control := range controls {
+		if point.In(control.Bounds) {
+			return control, true
+		}
+	}
+	return ui.Control{}, false
+}
+
+func dragged(start, current image.Point) bool {
+	dx, dy := start.X-current.X, start.Y-current.Y
+	return dx*dx+dy*dy > dragTolerance*dragTolerance
+}
+
+func (w *Window) cancelPointer() {
+	w.mu.Lock()
+	w.press = nil
+	w.mu.Unlock()
+}
+
 func (w *Window) resize(size image.Point) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	w.size = size
+	if size != w.size {
+		w.press = nil
+		w.size = size
+	}
 	return w.present()
 }
 
