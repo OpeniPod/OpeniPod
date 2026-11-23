@@ -57,10 +57,10 @@ check that Nura has a working audio route and that ALSA can open it.
 On a PulseAudio or PipeWire setup, this may require the session's ALSA
 compatibility configuration.
 
-Focus the player window and use the [keyboard controls](controls.md).
-Use a keyboard connected to Nura for the phone test. The current app
-handles keyboard input. Touch navigation and the phone's volume buttons
-still need integration.
+Use the [on-screen controls](controls.md#on-screen-controls) with the mouse
+in QEMU and check whether your phone's session delivers taps as pointer
+clicks. For the initial launch and audio checks, a connected keyboard works
+with the [keyboard controls](controls.md#keyboard).
 
 After the VM check, test launch, local MP3 playback, audio routing and
 behavior after screen lock on each real phone. Record which device,

@@ -63,7 +63,7 @@ not count as a direct test of either phone.
 
 ## Native window
 
-`internal/desktop` tests exercise key translation, frame updates, expose,
+`internal/desktop` tests exercise key translation, clicks, frame updates, expose,
 resize and aspect ratio, native driver errors, cancellation during input,
 and concurrent rendering. A test driver replaces the native window, while
 rendering uses the existing `ui.Display`. Command integration tests supply
@@ -80,17 +80,22 @@ restart to check settings persistence. Also check `q`, Ctrl+C, and SIGTERM
 shutdown. GUI smoke tests require a display and audio device and are not part
 of `make check`.
 
+Repeat the flow using the [on-screen controls](controls.md#on-screen-controls).
+Load at least nine tracks, page down twice, select a track on the final page,
+pause and resume, change volume and return Home. After resizing the window,
+check the edges of a button and the black borders. A drag should leave the
+playing track unchanged.
+
 ## Runtime test matrix
 
 | Target | Checks |
 | --- | --- |
 | Laptop | Run `make check`, then do the native-window and listening checks above. Verify keyboard navigation, an X11 or XWayland session, and ALSA playback. |
-| Nura in QEMU (x86-64) | Build and run inside the [VM](phone.md#nura-in-qemu). Check XWayland, keyboard navigation, playback through the virtual audio device, and persistence across app restarts. |
+| Nura in QEMU (x86-64) | Build and run inside the [VM](phone.md#nura-in-qemu). Check XWayland, keyboard and mouse navigation, playback through the virtual audio device, and persistence across app restarts. |
 | Redmi 4X (`santoni`) and Pixel 4a (`sunfish`) | Build for ARM64 in [Nura](phone.md#build-and-launch-in-nura). Check X11/XWayland, a connected keyboard, playback on the available audio outputs, and recovery after screen lock. Record each model and Nura version tested. |
 
-Touch and physical phone key checks belong in the device test once those
-inputs are integrated. The VM uses virtual hardware and cannot validate the
-phone's audio routing, inputs, or suspend behavior.
+Check touch delivery on the phone. The VM uses virtual hardware. Audio
+routing, physical inputs, and suspend behavior depend on the device.
 
 ## Diagnostic logging
 
