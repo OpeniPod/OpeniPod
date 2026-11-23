@@ -52,7 +52,7 @@ func TestPointerFollowsScaledAndResizedDisplay(t *testing.T) {
 			// Exercise the native event loop's resize and mouse paths together.
 			native.Send(sizeEvent(size))
 			want := app.ItemActivated{Screen: app.ScreenHome, Index: 2}
-			native.Send(clickControl(t, state, want, size))
+			sendClick(native, clickControl(t, state, want, size))
 			native.Send(lifecycle.Event{To: lifecycle.StageDead})
 			events := make(chan app.Event, 2)
 			if err := window.Run(context.Background(), events); err != nil {
@@ -70,6 +70,12 @@ func TestPointerFollowsScaledAndResizedDisplay(t *testing.T) {
 
 func sizeEvent(point image.Point) size.Event {
 	return size.Event{WidthPx: point.X, HeightPx: point.Y}
+}
+
+func sendClick(native *testNative, press mouse.Event) {
+	native.Send(press)
+	press.Direction = mouse.DirRelease
+	native.Send(press)
 }
 
 func TestPointerIgnoresBordersAndNonPresses(t *testing.T) {
@@ -95,6 +101,12 @@ func TestPointerIgnoresBordersAndNonPresses(t *testing.T) {
 		if got := window.pointerEvent(event); got != nil {
 			t.Errorf("event %+v activated %#v", event, got)
 		}
+		if event.Direction == mouse.DirPress {
+			event.Direction = mouse.DirRelease
+			if got := window.pointerEvent(event); got != nil {
+				t.Errorf("release %+v activated %#v", event, got)
+			}
+		}
 	}
 	for _, size := range []image.Point{image.Pt(640, 320), image.Pt(240, 640), image.Pt(0, 0), image.Pt(1, 1)} {
 		if err := window.resize(size); err != nil {
@@ -116,6 +128,8 @@ func TestPointerRegionsFollowLatestRenderedScreen(t *testing.T) {
 	if err := window.Render(app.AppState{Screen: app.ScreenTracks}); err != nil {
 		t.Fatal(err)
 	}
+	window.pointerEvent(click)
+	click.Direction = mouse.DirRelease
 	if got := window.pointerEvent(click); got != nil {
 		t.Fatalf("empty library used stale Home hit region: %#v", got)
 	}
@@ -174,19 +188,17 @@ func TestMouseControlsReachAppAndPlayer(t *testing.T) {
 	}
 	click := func(event app.Event) {
 		t.Helper()
-		e := clickControl(t, state, event, window.size)
-		native.Send(e)
-		e.Direction = mouse.DirRelease
-		native.Send(e)
+		sendClick(native, clickControl(t, state, event, window.size))
 	}
 	waitFor("loaded library", func(s app.AppState) bool { return len(s.Library.Tracks) == len(tracks) })
 	click(app.ItemActivated{Screen: app.ScreenHome, Index: 0})
 	waitFor("track list", func(s app.AppState) bool { return s.Screen == app.ScreenTracks })
 	click(app.Scroll{Delta: 4})
 	waitFor("second screen of tracks", func(s app.AppState) bool { return s.Navigation.TrackIndex == 4 })
-	click(app.ItemActivated{Screen: app.ScreenTracks, Index: 4})
+	// The last track on the second page must be reachable in one page turn.
+	click(app.ItemActivated{Screen: app.ScreenTracks, Index: 7})
 	waitFor("play clicked track", func(s app.AppState) bool {
-		return s.Screen == app.ScreenNowPlaying && s.Player.Status == app.StatusPlaying && s.Player.Track.ID == tracks[4].ID
+		return s.Screen == app.ScreenNowPlaying && s.Player.Status == app.StatusPlaying && s.Player.Track.ID == tracks[7].ID
 	})
 	click(app.PlayPausePressed{})
 	waitFor("pause", func(s app.AppState) bool { return s.Player.Status == app.StatusPaused })
@@ -194,11 +206,11 @@ func TestMouseControlsReachAppAndPlayer(t *testing.T) {
 	waitFor("resume", func(s app.AppState) bool { return s.Player.Status == app.StatusPlaying })
 	click(app.NextPressed{})
 	waitFor("next", func(s app.AppState) bool {
-		return s.Player.Track.ID == tracks[5].ID && s.Player.Status == app.StatusPlaying
+		return s.Player.Track.ID == tracks[8].ID && s.Player.Status == app.StatusPlaying
 	})
 	click(app.PreviousPressed{})
 	waitFor("previous", func(s app.AppState) bool {
-		return s.Player.Track.ID == tracks[4].ID && s.Player.Status == app.StatusPlaying
+		return s.Player.Track.ID == tracks[7].ID && s.Player.Status == app.StatusPlaying
 	})
 	click(app.VolumeChanged{Delta: 10})
 	waitFor("volume up", func(s app.AppState) bool { return s.Settings.Volume == 60 })
@@ -223,7 +235,7 @@ func TestMouseControlsReachAppAndPlayer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fakePlayer.Track.ID != tracks[4].ID || fakePlayer.Playing || fakePlayer.Volume != 60 {
+	if fakePlayer.Track.ID != tracks[7].ID || fakePlayer.Playing || fakePlayer.Volume != 60 {
 		t.Fatalf("player did not receive controls: track=%s playing=%t volume=%d", fakePlayer.Track.ID, fakePlayer.Playing, fakePlayer.Volume)
 	}
 	saved, err := settings.LoadSettings(context.Background())
