@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"fmt"
 	"image"
 	"image/color"
 	"reflect"
@@ -180,41 +179,43 @@ func TestLongErrorKeepsFooterVisible(t *testing.T) {
 	}
 }
 
-func TestControlsUseVisibleAbsoluteTrackRows(t *testing.T) {
-	tracks := make([]music.Track, 9)
-	for i := range tracks {
-		tracks[i] = music.Track{ID: music.TrackID(fmt.Sprintf("track-%d", i)), Title: fmt.Sprintf("Track %d", i)}
-	}
-	controls := Controls(app.AppState{
+func TestTrackPagerShowsConsecutivePages(t *testing.T) {
+	state := app.AppState{
 		Screen:     app.ScreenTracks,
-		Navigation: app.NavigationState{TrackIndex: 4},
-		Library:    app.LibraryState{Tracks: tracks},
-	})
-
-	var indexes []int
-	for _, control := range controls {
-		if activated, ok := control.Event.(app.ItemActivated); ok {
-			if activated.Screen != app.ScreenTracks {
-				t.Errorf("track control screen = %v, want Tracks", activated.Screen)
+		Navigation: app.NavigationState{TrackIndex: 3},
+		Library:    app.LibraryState{Tracks: make([]music.Track, 10)},
+	}
+	steps := []struct {
+		indexes  []int
+		up, down bool
+		delta    int
+	}{
+		{[]int{0, 1, 2, 3}, false, true, 4},
+		{[]int{4, 5, 6, 7}, true, true, 4},
+		{[]int{8, 9}, true, false, -4},
+		{[]int{4, 5, 6, 7}, true, true, -4},
+		{[]int{0, 1, 2, 3}, false, true, 0},
+	}
+	for step, want := range steps {
+		controls := Controls(state)
+		var indexes []int
+		for _, control := range controls {
+			if activated, ok := control.Event.(app.ItemActivated); ok {
+				if activated.Screen != app.ScreenTracks {
+					t.Errorf("track control screen = %v, want Tracks", activated.Screen)
+				}
+				indexes = append(indexes, activated.Index)
 			}
-			indexes = append(indexes, activated.Index)
 		}
-	}
-	if !reflect.DeepEqual(indexes, []int{1, 2, 3, 4}) {
-		t.Fatalf("visible track indexes = %v, want [1 2 3 4]", indexes)
-	}
-	if !hasControlEvent(controls, app.Scroll{Delta: -4}) ||
-		!hasControlEvent(controls, app.Scroll{Delta: 4}) {
-		t.Fatal("track pager controls did not expose both +/-4 actions")
-	}
-
-	lastPage := Controls(app.AppState{
-		Screen:     app.ScreenTracks,
-		Navigation: app.NavigationState{TrackIndex: 8},
-		Library:    app.LibraryState{Tracks: tracks},
-	})
-	if hasControlEvent(lastPage, app.Scroll{Delta: 4}) || !hasControlEvent(lastPage, app.Scroll{Delta: -4}) {
-		t.Fatal("last page did not omit only the disabled down action")
+		if !reflect.DeepEqual(indexes, want.indexes) {
+			t.Errorf("step %d: visible track indexes = %v, want %v", step, indexes, want.indexes)
+		}
+		up := hasControlEvent(controls, app.Scroll{Delta: -4})
+		down := hasControlEvent(controls, app.Scroll{Delta: 4})
+		if up != want.up || down != want.down {
+			t.Errorf("step %d: pager buttons up/down = %t/%t, want %t/%t", step, up, down, want.up, want.down)
+		}
+		state, _ = app.Reduce(state, app.Scroll{Delta: want.delta})
 	}
 }
 

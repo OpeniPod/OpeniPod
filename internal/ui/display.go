@@ -74,6 +74,8 @@ type screenLayout struct {
 	trackRows     []itemRegion
 	trackPrevious image.Rectangle
 	trackNext     image.Rectangle
+	canPageUp     bool
+	canPageDown   bool
 
 	back       image.Rectangle
 	previous   image.Rectangle
@@ -114,7 +116,7 @@ func layoutFor(state app.AppState) screenLayout {
 		return layout
 	}
 	selected := clamp(state.Navigation.TrackIndex, 0, len(tracks)-1)
-	start := max(0, min(selected-trackMaxRows+1, len(tracks)-trackMaxRows))
+	start := selected / trackMaxRows * trackMaxRows
 	end := min(start+trackMaxRows, len(tracks))
 	for i := start; i < end; i++ {
 		row := i - start
@@ -126,6 +128,8 @@ func layoutFor(state app.AppState) screenLayout {
 	}
 	layout.trackPrevious = image.Rect(margin, 194, 82, contentBottom)
 	layout.trackNext = image.Rect(158, 194, contentRight, contentBottom)
+	layout.canPageUp = start > 0
+	layout.canPageDown = end < len(tracks)
 	return layout
 }
 
@@ -148,16 +152,13 @@ func Controls(state app.AppState) []Control {
 		appendItems(layout.homeRows, app.ScreenHome)
 	case app.ScreenTracks:
 		appendItems(layout.trackRows, app.ScreenTracks)
-		if len(layout.trackRows) > 0 {
-			selected := clamp(state.Navigation.TrackIndex, 0, len(state.Library.Tracks)-1)
-			if selected > 0 {
-				controls = append(controls, Control{Bounds: layout.trackPrevious,
-					Event: app.Scroll{Delta: -trackMaxRows}})
-			}
-			if selected < len(state.Library.Tracks)-1 {
-				controls = append(controls, Control{Bounds: layout.trackNext,
-					Event: app.Scroll{Delta: trackMaxRows}})
-			}
+		if layout.canPageUp {
+			controls = append(controls, Control{Bounds: layout.trackPrevious,
+				Event: app.Scroll{Delta: -trackMaxRows}})
+		}
+		if layout.canPageDown {
+			controls = append(controls, Control{Bounds: layout.trackNext,
+				Event: app.Scroll{Delta: trackMaxRows}})
 		}
 	case app.ScreenSettings:
 		appendItems(layout.settingsRows, app.ScreenSettings)
@@ -291,12 +292,12 @@ func (d *Display) renderTracks(img *image.RGBA, state app.AppState, layout scree
 
 	// The pager shares its rectangles with Controls. Disabled buttons remain
 	// visible as feedback, but are omitted from Controls at the boundaries.
-	if selected > 0 {
+	if layout.canPageUp {
 		d.drawButton(img, layout.trackPrevious, "UP", colorText)
 	} else {
 		d.drawButton(img, layout.trackPrevious, "UP", colorMuted)
 	}
-	if selected < len(tracks)-1 {
+	if layout.canPageDown {
 		d.drawButton(img, layout.trackNext, "DOWN", colorText)
 	} else {
 		d.drawButton(img, layout.trackNext, "DOWN", colorMuted)
