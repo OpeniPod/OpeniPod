@@ -229,6 +229,17 @@ func TestMouseControlsReachAppAndPlayer(t *testing.T) {
 	waitFor("keyboard volume", func(s app.AppState) bool { return s.Settings.Volume == 60 })
 	native.Send(key.Event{Code: key.CodeEscape, Direction: key.DirPress})
 	waitFor("keyboard Back", func(s app.AppState) bool { return s.Screen == app.ScreenHome })
+	click(app.ItemActivated{Screen: app.ScreenHome, Index: 2})
+	waitFor("Settings", func(s app.AppState) bool { return s.Screen == app.ScreenSettings })
+	click(app.ItemActivated{Screen: app.ScreenSettings, Index: app.SettingsRepeat})
+	waitFor("Repeat All", func(s app.AppState) bool { return s.Settings.Repeat == app.RepeatAll })
+	click(app.ItemActivated{Screen: app.ScreenSettings, Index: app.SettingsRepeat})
+	waitFor("Repeat One", func(s app.AppState) bool { return s.Settings.Repeat == app.RepeatOne })
+	click(app.ItemActivated{Screen: app.ScreenSettings, Index: app.SettingsShuffle})
+	waitFor("Shuffle On", func(s app.AppState) bool { return s.Settings.Shuffle })
+	if state.Player.Status != app.StatusPaused || state.Player.Track.ID != tracks[7].ID {
+		t.Fatalf("settings interrupted paused playback: %+v", state.Player)
+	}
 	native.Send(lifecycle.Event{To: lifecycle.StageDead})
 	err := receive(t, done)
 	finished = true
@@ -239,7 +250,7 @@ func TestMouseControlsReachAppAndPlayer(t *testing.T) {
 		t.Fatalf("player did not receive controls: track=%s playing=%t volume=%d", fakePlayer.Track.ID, fakePlayer.Playing, fakePlayer.Volume)
 	}
 	saved, err := settings.LoadSettings(context.Background())
-	if err != nil || saved.Volume != 60 {
+	if err != nil || saved.Volume != 60 || saved.Repeat != app.RepeatOne || !saved.Shuffle {
 		t.Fatalf("saved settings = %+v, error = %v", saved, err)
 	}
 }

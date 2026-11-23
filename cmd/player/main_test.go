@@ -396,6 +396,32 @@ func TestRunFileLoggingRecordsFilesystemPlayback(t *testing.T) {
 	}
 }
 
+func TestRunPersistsPlaybackModesFromSettings(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	args := []string{"--settings-file", path, "--music-dir", t.TempDir()}
+	// Existing keyboard events open Settings and activate the three new rows.
+	first := runPlayer(t, args, eventInput{events: []app.Event{
+		app.Scroll{Delta: 2}, app.SelectPressed{},
+		app.Scroll{Delta: app.SettingsVolume}, app.SelectPressed{},
+		app.Scroll{Delta: 1}, app.SelectPressed{},
+		app.Scroll{Delta: 1}, app.SelectPressed{}, app.QuitRequested{},
+	}})
+	if first.err != nil {
+		t.Fatal(first.err)
+	}
+	want := app.SettingsState{Volume: 60, Repeat: app.RepeatAll, Shuffle: true}
+	if got := lastState(t, first.states).Settings; got != want {
+		t.Fatalf("selected settings = %+v, want %+v", got, want)
+	}
+	restored := runPlayer(t, args, eventInput{})
+	if restored.err != nil {
+		t.Fatal(restored.err)
+	}
+	if got := lastState(t, restored.states).Settings; got != want || restored.audio.Volume != 60 {
+		t.Fatalf("restored settings = %+v, player volume = %d", got, restored.audio.Volume)
+	}
+}
+
 func TestRunJournalLogsInputFailureOnce(t *testing.T) {
 	inputErr := errors.New("input adapter failed")
 	got := runPlayer(t, []string{"--music-dir", t.TempDir(), "--log-target", "journal", "--log-file", ""}, eventInput{err: inputErr})

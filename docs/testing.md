@@ -72,6 +72,14 @@ not count as a direct test of either phone.
 
 ## Native window
 
+Repeat/shuffle checks cover all mode combinations, per-pass uniqueness across
+fixed seeds, manual next/previous, empty and one-track libraries, library
+refresh, and reducer snapshot isolation. App integration tests simulate track
+completion through the fake player's event stream. Command and storage tests
+check restoring modes together with volume and equalizer; window tests activate
+Repeat/Shuffle through real scaled hit regions. See the
+[research and manual playback checks](repeat-shuffle.md#verification).
+
 `internal/desktop` tests exercise key translation, clicks, frame updates, expose,
 resize and aspect ratio, native driver errors, cancellation during input,
 and concurrent rendering. A test driver replaces the native window, while

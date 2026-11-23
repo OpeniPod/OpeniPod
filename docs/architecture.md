@@ -61,8 +61,8 @@ Events are Go types, not string tags. `SelectPressed` on a track requests
 `Play`; the player emits `PlaybackStarted`; only that event marks playback
 as playing. The real player includes the decoded duration in `PlaybackStarted`.
 Library and settings are loaded at startup through their
-interfaces. The Settings screen exposes `Update Library` and `Equalizer` as
-selectable items. Selecting `Update Library` invokes `Library.Refresh` as a synchronous one-off
+interfaces. The Settings screen exposes Update Library, Equalizer, Volume,
+Repeat, and Shuffle as selectable items. Selecting `Update Library` invokes `Library.Refresh` as a synchronous one-off
 operation. The app waits for it to finish and replaces its track list only
 after success. A load or refresh failure becomes visible in state; a refresh
 failure preserves the existing in-memory list and saved index. App logs
@@ -93,6 +93,16 @@ the speaker lock when updating the active filter, following the existing audio
 lock order. Audio callbacks do not acquire the player mutex.
 
 Home and track-list movement **clamps** at the first and last item. Next and previous track commands wrap around the loaded library. Volume clamps to 0..100. Back returns to Home. These choices keep the initial navigation small and predictable.
+
+Repeat and shuffle decisions remain in the reducer. App chooses a session seed;
+the state holds it, a generation counter and an immutable-by-convention shuffled
+ID slice. Each new order uses a local PCG source and Fisher–Yates, so Reduce
+remains deterministic and has no shared RNG or I/O. Rendering receives a copy
+of the ID slice. Only the modes are saved through Storage, not the session
+order. `TrackFinished` advances or stops according to repeat mode; automatic
+advancement preserves the current screen. Manual Next/Previous ignore Repeat
+One and follow the current order. See [repeat/shuffle](repeat-shuffle.md) for
+pass boundaries, refresh behavior, research and reproducible checks.
 
 ## Concurrency and shutdown
 

@@ -97,21 +97,23 @@ func TestSettingsSelectionFollowsSelectedItem(t *testing.T) {
 	}{
 		{name: "update library", selected: 0},
 		{name: "equalizer", selected: 1},
+		{name: "volume", selected: app.SettingsVolume},
+		{name: "repeat", selected: app.SettingsRepeat},
+		{name: "shuffle", selected: app.SettingsShuffle},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			img := display.Render(app.AppState{
 				Screen:     app.ScreenSettings,
 				Navigation: app.NavigationState{SettingsIndex: test.selected},
 			})
-			firstWant, secondWant := colorPanel, colorAccent
-			if test.selected == 0 {
-				firstWant, secondWant = colorAccent, colorPanel
-			}
-			if got := img.RGBAAt(margin+1, 70); got != firstWant {
-				t.Errorf("Update Library marker = %v, want %v", got, firstWant)
-			}
-			if got := img.RGBAAt(margin+1, 120); got != secondWant {
-				t.Errorf("Equalizer marker = %v, want %v", got, secondWant)
+			for _, row := range layoutFor(app.AppState{}).settingsRows {
+				want := colorPanel
+				if row.Index == test.selected {
+					want = colorAccent
+				}
+				if got := img.RGBAAt(row.Bounds.Min.X+1, row.Bounds.Min.Y+5); got != want {
+					t.Errorf("row %d selection = %v, want %v", row.Index, got, want)
+				}
 			}
 		})
 	}
@@ -126,7 +128,7 @@ func TestSettingsRendersEqualizerPreset(t *testing.T) {
 			Settings:   app.SettingsState{Equalizer: preset},
 		}
 	}
-	region := image.Rect(margin+11, 132, contentRight, 153)
+	region := layoutFor(app.AppState{}).settingsRows[app.SettingsEqualizer].Bounds
 	off := display.Render(settingsState(app.EqualizerOff))
 	bassBoost := display.Render(settingsState(app.EqualizerBassBoost))
 	vocal := display.Render(settingsState(app.EqualizerVocal))
@@ -135,6 +137,40 @@ func TestSettingsRendersEqualizerPreset(t *testing.T) {
 	}
 	if imagesEqualInRect(bassBoost, vocal, region) {
 		t.Fatal("Equalizer row did not change when preset changed from Bass boost to Vocal")
+	}
+}
+
+func TestSettingsControlsAndModeLabels(t *testing.T) {
+	display := newTestDisplay(t)
+	state := app.AppState{Screen: app.ScreenSettings, Settings: app.DefaultSettings()}
+	before := display.Render(state)
+	for _, index := range []int{app.SettingsVolume, app.SettingsRepeat, app.SettingsShuffle} {
+		found := false
+		for _, control := range Controls(state) {
+			if event, ok := control.Event.(app.ItemActivated); ok && event.Index == index {
+				if control.Bounds.Max.Y > errorTop || control.Bounds.Dy() < 29 {
+					t.Fatalf("setting row overlaps errors or is too small: %+v", control)
+				}
+				state, _ = app.Reduce(state, event)
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("setting %d has no pointer control", index)
+		}
+	}
+	if state.Settings.Volume != 60 || state.Settings.Repeat != app.RepeatAll || !state.Settings.Shuffle {
+		t.Fatalf("pointer settings = %+v", state.Settings)
+	}
+	// Keep selection identical when comparing value pixels, not highlights.
+	state.Navigation.SettingsIndex = 0
+	after := display.Render(state)
+	for _, index := range []int{app.SettingsVolume, app.SettingsRepeat, app.SettingsShuffle} {
+		region := layoutFor(state).settingsRows[index].Bounds
+		if imagesEqualInRect(before, after, region) {
+			t.Fatalf("setting %d label did not change", index)
+		}
 	}
 }
 

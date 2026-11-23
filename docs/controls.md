@@ -33,3 +33,13 @@ a keyboard connected to a phone.
 
 The player's volume is saved between runs. Scroll input is reserved for menu
 navigation. Phone volume buttons are planned work.
+
+## Playback settings
+
+In Settings, use the row controls or `j`/`k` and Enter. Update Library and
+Equalizer keep their existing behavior. Volume increases by 10 with Enter;
+the global minus/plus controls adjust it in either direction. Repeat cycles
+Off → All → One → Off; Shuffle toggles Off/On. All modes are saved between runs.
+Repeat One applies to automatic completion, not manual Next/Previous. Manual
+navigation wraps in the current library/shuffled order. See
+[repeat and shuffle](repeat-shuffle.md) for the full behavior.

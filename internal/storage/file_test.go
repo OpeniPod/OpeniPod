@@ -56,6 +56,9 @@ func TestFileLoadJSON(t *testing.T) {
 		{"explicit zero", `{"volume":0}`, app.SettingsState{Volume: 0}, false},
 		{"unknown field", `{"volume":30,"future":true}`, app.SettingsState{Volume: 30}, false},
 		{"missing equalizer", `{"volume":30}`, app.SettingsState{Volume: 30}, false},
+		{"all playback modes", `{"volume":20,"repeat":"one","shuffle":true,"equalizer":"vocal"}`, app.SettingsState{Volume: 20, Repeat: app.RepeatOne, Shuffle: true, Equalizer: app.EqualizerVocal}, false},
+		{"wrong repeat type", `{"repeat":2}`, app.SettingsState{}, true},
+		{"wrong shuffle type", `{"shuffle":"yes"}`, app.SettingsState{}, true},
 		{"truncated", `{"volume":30`, app.SettingsState{}, true},
 		{"wrong type", `{"volume":"loud"}`, app.SettingsState{}, true},
 		{"empty", ``, app.SettingsState{}, true},
@@ -95,6 +98,22 @@ func TestFileRoundTripsEqualizerPresets(t *testing.T) {
 		got, err := file.LoadSettings(context.Background())
 		if err != nil || got != want {
 			t.Fatalf("load preset %q = %+v, %v; want %+v", preset, got, err, want)
+		}
+	}
+}
+
+func TestFileRoundTripsPlaybackModesWithoutLosingEqualizer(t *testing.T) {
+	file := storage.NewFile(filepath.Join(t.TempDir(), "settings.json"))
+	for _, mode := range []app.RepeatMode{app.RepeatOff, app.RepeatAll, app.RepeatOne} {
+		for _, shuffle := range []bool{true, false} {
+			want := app.SettingsState{Volume: 63, Equalizer: app.EqualizerVocal, Repeat: mode, Shuffle: shuffle}
+			if err := file.SaveSettings(context.Background(), want); err != nil {
+				t.Fatal(err)
+			}
+			got, err := file.LoadSettings(context.Background())
+			if err != nil || got != want {
+				t.Fatalf("playback settings round trip = %+v, %v; want %+v", got, err, want)
+			}
 		}
 	}
 }
