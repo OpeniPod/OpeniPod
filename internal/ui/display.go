@@ -24,7 +24,7 @@ const (
 	contentRight    = ScreenWidth - margin
 	headerRuleY     = 44
 	contentBottom   = 219
-	errorTop        = 221
+	errorTop        = 220
 	errorBottom     = 250
 	footerRuleY     = 254
 	transportTop    = 254
@@ -362,9 +362,9 @@ func (d *Display) renderSettings(img *image.RGBA, state app.AppState, layout scr
 func (d *Display) renderError(img *image.RGBA, message string) {
 	box := image.Rect(margin, errorTop, contentRight, errorBottom)
 	d.fillRect(img, box, colorErrorPanel)
-	d.drawText(img, d.smallFace, "ERROR", box.Min.X+8, box.Min.Y+11, colorError)
-	d.drawWrapped(img, message, d.smallFace, box.Min.X+8, box.Min.Y+23,
-		box.Dx()-16, 1, colorText, 10)
+	d.drawText(img, d.smallFace, "ERROR", box.Min.X+8, box.Min.Y+9, colorError)
+	d.drawWrapped(img, message, d.smallFace, box.Min.X+8, box.Min.Y+18,
+		box.Dx()-16, 2, colorText, 10)
 }
 
 func (d *Display) renderGlobalControls(img *image.RGBA, state app.AppState, layout screenLayout) {

@@ -161,7 +161,7 @@ func TestEllipsizeHandlesWidthSmallerThanEllipsis(t *testing.T) {
 	}
 }
 
-func TestLongErrorKeepsFooterVisible(t *testing.T) {
+func TestLongErrorWrapsWithoutCoveringFooter(t *testing.T) {
 	display := newTestDisplay(t)
 	img := display.Render(app.AppState{
 		Screen: app.ScreenSettings,
@@ -176,6 +176,9 @@ func TestLongErrorKeepsFooterVisible(t *testing.T) {
 	}
 	if countPixelsInRect(img, image.Rect(margin, errorTop, contentRight, footerRuleY-5), colorErrorPanel) == 0 {
 		t.Fatal("error message panel was not rendered")
+	}
+	if countPixelsInRect(img, image.Rect(margin+8, 242, contentRight-8, errorBottom), colorText) == 0 {
+		t.Fatal("second line of the error message was not rendered")
 	}
 }
 
