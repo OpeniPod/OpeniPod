@@ -63,7 +63,7 @@ func (p *Player) resetTrackLocked() {
 
 func NewPlayer() (*Player, error) {
 	speakerInit.Do(func() {
-		speakerInitErr = speaker.Init(sampleRate, sampleRate.N(time.Second/10))
+		speakerInitErr = speaker.Init(sampleRate, sampleRate.N(400*time.Millisecond))
 	})
 	if speakerInitErr != nil {
 		return nil, fmt.Errorf("initialize audio speaker: %w", speakerInitErr)
