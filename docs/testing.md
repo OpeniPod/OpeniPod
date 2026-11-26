@@ -24,7 +24,7 @@ and returns as a rendered playing state; seek events reach the player fake.
 
 Run manual keyboard checks on a laptop or in QEMU: Left and Right seek by five
 seconds, Shift+Left and Shift+Right switch tracks, and `h` and `n` switch
-tracks without an EC11. Scroll events remain menu navigation in master.
+tracks. Scroll events remain menu navigation.
 
 Fakes let contributors test the application without audio files or device hardware. Add tests for observable behavior at the appropriate boundary. For event-loop changes, check cancellation, blocked sends, channel closure, and race behavior. Do not mock hardware behavior into unit tests merely to increase test count.
 
