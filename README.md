@@ -1,11 +1,10 @@
 # OpeniPod
 
-OpeniPod is a team learning project for an iPod-inspired local music player.
-The desktop app runs on Linux and macOS; the intended hardware target is an
-Orange Pi Zero, and hardware-specific support is not yet implemented. Nura
-(formerly postmarketOS) is used for phone and QEMU testing. The Redmi 4X and
-Google Pixel 4a are physical test targets. The [Nura guide](docs/phone.md)
-covers running the player in QEMU and on a phone.
+OpeniPod is an iPod-inspired player for local music on Linux phones running
+Nura (formerly postmarketOS). The Redmi 4X and Google Pixel 4a are our
+physical test targets. The desktop app runs on Linux and macOS for development
+and keyboard testing. The [Nura guide](docs/phone.md) covers running the player
+in QEMU and on a phone.
 
 The current Go app provides a graphical window, a local music library, MP3
 playback, and persistent volume and equalizer settings. Use the keyboard
