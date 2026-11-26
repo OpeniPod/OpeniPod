@@ -162,7 +162,8 @@ func Reduce(state AppState, event Event) (AppState, []command) {
 }
 
 func seek(state AppState, delta time.Duration) (AppState, []command) {
-	if !state.Player.HasTrack || state.Player.Status == StatusStopped || delta == 0 {
+	if !state.Player.HasTrack ||
+		(state.Player.Status != StatusPlaying && state.Player.Status != StatusPaused) || delta == 0 {
 		return state, nil
 	}
 	return state, []command{seekPlayback{delta: delta}}

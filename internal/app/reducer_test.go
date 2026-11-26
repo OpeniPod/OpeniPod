@@ -111,40 +111,49 @@ func TestPlaybackEvents(t *testing.T) {
 }
 
 func TestSeekInputsRequestRelativeSeek(t *testing.T) {
-	state := AppState{
-		Screen: ScreenNowPlaying,
-		Player: PlayerState{HasTrack: true, Status: StatusPlaying},
-	}
-	for _, tc := range []struct {
-		name  string
-		event Event
-		delta time.Duration
+	for _, playback := range []struct {
+		name   string
+		status PlaybackStatus
 	}{
-		{name: "keyboard forward", event: SeekBy{Delta: SeekStep}, delta: SeekStep},
-		{name: "keyboard backward", event: SeekBy{Delta: -SeekStep}, delta: -SeekStep},
+		{name: "playing", status: StatusPlaying},
+		{name: "paused", status: StatusPaused},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			got, commands := Reduce(state, tc.event)
-			if len(commands) != 1 {
-				t.Fatalf("commands = %#v, want one seek command", commands)
-			}
-			seek, ok := commands[0].(seekPlayback)
-			if !ok || seek.delta != tc.delta {
-				t.Fatalf("command = %#v, want seek by %s", commands[0], tc.delta)
-			}
-			if got.Player.Position != state.Player.Position || got.Screen != state.Screen {
-				t.Fatalf("seek input directly changed playback state: %+v", got)
-			}
-		})
+		for _, tc := range []struct {
+			name  string
+			event Event
+			delta time.Duration
+		}{
+			{name: "keyboard forward", event: SeekBy{Delta: SeekStep}, delta: SeekStep},
+			{name: "keyboard backward", event: SeekBy{Delta: -SeekStep}, delta: -SeekStep},
+		} {
+			t.Run(tc.name+"/"+playback.name, func(t *testing.T) {
+				state := AppState{
+					Screen: ScreenNowPlaying,
+					Player: PlayerState{HasTrack: true, Status: playback.status},
+				}
+				got, commands := Reduce(state, tc.event)
+				if len(commands) != 1 {
+					t.Fatalf("commands = %#v, want one seek command", commands)
+				}
+				seek, ok := commands[0].(seekPlayback)
+				if !ok || seek.delta != tc.delta {
+					t.Fatalf("command = %#v, want seek by %s", commands[0], tc.delta)
+				}
+				if got.Player.Position != state.Player.Position || got.Screen != state.Screen {
+					t.Fatalf("seek input directly changed playback state: %+v", got)
+				}
+			})
+		}
 	}
 }
 
 func TestSeekIgnoredWithoutActiveTrack(t *testing.T) {
 	for _, state := range []AppState{
 		{Screen: ScreenNowPlaying},
+		{Player: PlayerState{HasTrack: true, Status: StatusStarting}},
 		{Player: PlayerState{HasTrack: true, Status: StatusStopped}},
 	} {
-		for _, event := range []Event{SeekBy{Delta: SeekStep}, Scroll{Delta: 1}} {
+		for _, event := range []Event{SeekBy{Delta: SeekStep}, SeekBy{}, Scroll{Delta: 1}} {
 			_, commands := Reduce(state, event)
 			if len(commands) != 0 {
 				t.Fatalf("state %+v event %#v produced commands %#v, want none", state, event, commands)

@@ -16,7 +16,8 @@ import (
 )
 
 type scriptedInput struct {
-	playing <-chan struct{}
+	playing            <-chan struct{}
+	eventsAfterPlaying []app.Event
 }
 
 func (s scriptedInput) Run(ctx context.Context, events chan<- app.Event) error {
@@ -35,6 +36,13 @@ func (s scriptedInput) Run(ctx context.Context, events chan<- app.Event) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-s.playing:
+	}
+	for _, event := range s.eventsAfterPlaying {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case events <- event:
+		}
 	}
 	select {
 	case <-ctx.Done():
@@ -121,16 +129,12 @@ func TestKeyboardStyleEventsReachPlayerAndUI(t *testing.T) {
 }
 
 func TestSeekEventReachesPlayer(t *testing.T) {
+	ui := &observingUI{playing: make(chan struct{})}
 	fakePlayer := player.NewFake()
-	application := app.New(fakePlayer, library.NewFake(), storage.NewMemory(50), eventInput{
-		events: []app.Event{
-			app.SelectPressed{},
-			app.Scroll{Delta: 1},
-			app.SelectPressed{},
-			app.SeekBy{Delta: app.SeekStep},
-			app.QuitRequested{},
-		},
-	}, silentUI{})
+	application := app.New(fakePlayer, library.NewFake(), storage.NewMemory(50), scriptedInput{
+		playing:            ui.playing,
+		eventsAfterPlaying: []app.Event{app.SeekBy{Delta: app.SeekStep}},
+	}, ui)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	if err := application.Run(ctx); err != nil {
