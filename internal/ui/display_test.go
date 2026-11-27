@@ -249,6 +249,73 @@ func TestControlsExposeTransportAndVolumeOnEveryScreen(t *testing.T) {
 	}
 }
 
+func TestNowPlayingSeekControlsAreAvailableWhilePlayingAndPaused(t *testing.T) {
+	display := newTestDisplay(t)
+	for _, status := range []app.PlaybackStatus{app.StatusPlaying, app.StatusPaused} {
+		state := app.AppState{
+			Screen: app.ScreenNowPlaying,
+			Player: app.PlayerState{
+				Track:    music.Track{Title: "Track", Duration: time.Minute},
+				HasTrack: true,
+				Status:   status,
+			},
+		}
+		controls := Controls(state)
+		layout := layoutFor(state)
+		for _, test := range []struct {
+			event  app.SeekBy
+			bounds image.Rectangle
+		}{
+			{event: app.SeekBy{Delta: -app.SeekStep}, bounds: layout.seekBackward},
+			{event: app.SeekBy{Delta: app.SeekStep}, bounds: layout.seekForward},
+		} {
+			var found *Control
+			for i := range controls {
+				if controls[i].Event == test.event {
+					found = &controls[i]
+					break
+				}
+			}
+			if found == nil {
+				t.Fatalf("status %v missing seek control %#v", status, test.event)
+			}
+			if found.Bounds != test.bounds {
+				t.Errorf("status %v seek control bounds = %v, want %v", status, found.Bounds, test.bounds)
+			}
+			if found.Bounds.Overlaps(layout.previous) ||
+				found.Bounds.Overlaps(layout.playPause) ||
+				found.Bounds.Overlaps(layout.next) {
+				t.Errorf("status %v seek control overlaps transport: %v", status, found.Bounds)
+			}
+		}
+
+		img := display.Render(state)
+		for _, bounds := range []image.Rectangle{layout.seekBackward, layout.seekForward} {
+			if got := img.RGBAAt(bounds.Min.X, bounds.Min.Y); got != colorPanel {
+				t.Errorf("status %v seek button background = %v, want %v", status, got, colorPanel)
+			}
+			if countPixelsInRect(img, bounds, colorPanel) == bounds.Dx()*bounds.Dy() {
+				t.Errorf("status %v seek button has no visible label in %v", status, bounds)
+			}
+		}
+	}
+}
+
+func TestSeekControlsAreOmittedWhenPlaybackCannotSeek(t *testing.T) {
+	for _, state := range []app.AppState{
+		{Screen: app.ScreenHome, Player: app.PlayerState{HasTrack: true, Status: app.StatusPlaying}},
+		{Screen: app.ScreenNowPlaying, Player: app.PlayerState{Status: app.StatusPlaying}},
+		{Screen: app.ScreenNowPlaying, Player: app.PlayerState{HasTrack: true, Status: app.StatusStarting}},
+		{Screen: app.ScreenNowPlaying, Player: app.PlayerState{HasTrack: true, Status: app.StatusStopped}},
+	} {
+		for _, control := range Controls(state) {
+			if _, ok := control.Event.(app.SeekBy); ok {
+				t.Fatalf("screen %v status %v exposed seek control without seekable playback", state.Screen, state.Player.Status)
+			}
+		}
+	}
+}
+
 func TestControlsDoNotOverlapErrorPanel(t *testing.T) {
 	state := app.AppState{Screen: app.ScreenSettings, Error: "library failed"}
 	for _, control := range Controls(state) {

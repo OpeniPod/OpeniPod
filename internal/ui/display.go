@@ -77,12 +77,14 @@ type screenLayout struct {
 	canPageUp     bool
 	canPageDown   bool
 
-	back       image.Rectangle
-	previous   image.Rectangle
-	playPause  image.Rectangle
-	next       image.Rectangle
-	volumeDown image.Rectangle
-	volumeUp   image.Rectangle
+	seekBackward image.Rectangle
+	seekForward  image.Rectangle
+	back         image.Rectangle
+	previous     image.Rectangle
+	playPause    image.Rectangle
+	next         image.Rectangle
+	volumeDown   image.Rectangle
+	volumeUp     image.Rectangle
 }
 
 const (
@@ -103,12 +105,14 @@ func layoutFor(state app.AppState) screenLayout {
 			{Bounds: image.Rect(margin, 57, contentRight, 101), Index: 0},
 			{Bounds: image.Rect(margin, 108, contentRight, 163), Index: 1},
 		},
-		back:       image.Rect(margin, transportTop, 61, transportBottom),
-		previous:   image.Rect(63, transportTop, 110, transportBottom),
-		playPause:  image.Rect(112, transportTop, 166, transportBottom),
-		next:       image.Rect(168, transportTop, contentRight, transportBottom),
-		volumeDown: image.Rect(margin, volumeTop, 53, volumeBottom),
-		volumeUp:   image.Rect(187, volumeTop, contentRight, volumeBottom),
+		seekBackward: image.Rect(margin, 163, 110, 187),
+		seekForward:  image.Rect(130, 163, contentRight, 187),
+		back:         image.Rect(margin, transportTop, 61, transportBottom),
+		previous:     image.Rect(63, transportTop, 110, transportBottom),
+		playPause:    image.Rect(112, transportTop, 166, transportBottom),
+		next:         image.Rect(168, transportTop, contentRight, transportBottom),
+		volumeDown:   image.Rect(margin, volumeTop, 53, volumeBottom),
+		volumeUp:     image.Rect(187, volumeTop, contentRight, volumeBottom),
 	}
 
 	tracks := state.Library.Tracks
@@ -164,6 +168,13 @@ func Controls(state app.AppState) []Control {
 		appendItems(layout.settingsRows, app.ScreenSettings)
 	}
 
+	if seekControlsAvailable(state) {
+		controls = append(controls,
+			Control{Bounds: layout.seekBackward, Event: app.SeekBy{Delta: -app.SeekStep}},
+			Control{Bounds: layout.seekForward, Event: app.SeekBy{Delta: app.SeekStep}},
+		)
+	}
+
 	controls = append(controls,
 		Control{Bounds: layout.back, Event: app.BackPressed{}},
 		Control{Bounds: layout.previous, Event: app.PreviousPressed{}},
@@ -173,6 +184,13 @@ func Controls(state app.AppState) []Control {
 		Control{Bounds: layout.volumeUp, Event: app.VolumeChanged{Delta: 10}},
 	)
 	return controls
+}
+
+func seekControlsAvailable(state app.AppState) bool {
+	if state.Screen != app.ScreenNowPlaying || !state.Player.HasTrack {
+		return false
+	}
+	return state.Player.Status == app.StatusPlaying || state.Player.Status == app.StatusPaused
 }
 
 func NewDisplay() (*Display, error) {
@@ -237,7 +255,7 @@ func (d *Display) Render(state app.AppState) *image.RGBA {
 	case app.ScreenTracks:
 		d.renderTracks(img, state, layout)
 	case app.ScreenNowPlaying:
-		d.renderNowPlaying(img, state)
+		d.renderNowPlaying(img, state, layout)
 	case app.ScreenSettings:
 		d.renderSettings(img, state, layout)
 	}
@@ -306,7 +324,7 @@ func (d *Display) renderTracks(img *image.RGBA, state app.AppState, layout scree
 		97, 210, colorMuted)
 }
 
-func (d *Display) renderNowPlaying(img *image.RGBA, state app.AppState) {
+func (d *Display) renderNowPlaying(img *image.RGBA, state app.AppState, layout screenLayout) {
 	if !state.Player.HasTrack {
 		d.drawText(img, d.bodyFace, "Select a track to start", margin, 91, colorText)
 		d.drawText(img, d.smallFace, "Choose one from Tracks.", margin, 113, colorMuted)
@@ -328,6 +346,11 @@ func (d *Display) renderNowPlaying(img *image.RGBA, state app.AppState) {
 	statusRect := image.Rect(margin, 137, margin+97, 160)
 	d.fillRect(img, statusRect, colorPanel)
 	d.drawText(img, d.smallFace, status, statusRect.Min.X+8, 152, statusColor)
+
+	if seekControlsAvailable(state) {
+		d.drawButton(img, layout.seekBackward, "-5s", colorText)
+		d.drawButton(img, layout.seekForward, "+5s", colorText)
+	}
 
 	bar := image.Rect(margin, 190, contentRight, 198)
 	d.fillRect(img, bar, colorProgress)
