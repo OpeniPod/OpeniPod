@@ -5,7 +5,8 @@
 Click a menu item to open it or a track to play it. In **Tracks**, **UP** and
 **DOWN** move between pages of four tracks. **BACK** returns to Home.
 **PREV**, **PLAY/PAUSE**, and **NEXT** control playback. The **−** and **+**
-buttons change the player's volume by 10 percentage points.
+buttons change the player's volume by 10 percentage points. In **Now Playing**,
+**-5s** and **+5s** seek by five seconds while playing or paused.
 
 A click activates a control when the primary button is released on it.
 Dragging across the screen cancels the action. A touchscreen can use these

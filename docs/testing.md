@@ -93,9 +93,10 @@ device and are not part of `make check`.
 
 Repeat the flow using the [on-screen controls](controls.md#on-screen-controls).
 Load at least nine tracks, page down twice, select a track on the final page,
-pause and resume, change volume and return Home. After resizing the window,
-check the edges of a button and the black borders. A drag should leave the
-playing track unchanged.
+pause and resume, change volume and return Home. On **Now Playing**, check
+**-5s** and **+5s** while playing and paused; the displayed time and progress
+bar should move. After resizing the window, check the edges of a button and the
+black borders. A drag should leave the playing track unchanged.
 
 ## Runtime test matrix
 

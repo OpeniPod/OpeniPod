@@ -200,8 +200,28 @@ func TestMouseControlsReachAppAndPlayer(t *testing.T) {
 	waitFor("play clicked track", func(s app.AppState) bool {
 		return s.Screen == app.ScreenNowPlaying && s.Player.Status == app.StatusPlaying && s.Player.Track.ID == tracks[7].ID
 	})
+	click(app.SeekBy{Delta: app.SeekStep})
+	waitFor("seek forward while playing", func(s app.AppState) bool {
+		return s.Player.Status == app.StatusPlaying && s.Player.Position == app.SeekStep
+	})
+	click(app.SeekBy{Delta: -app.SeekStep})
+	waitFor("seek backward while playing", func(s app.AppState) bool {
+		return s.Player.Status == app.StatusPlaying && s.Player.Position == 0
+	})
+	click(app.SeekBy{Delta: app.SeekStep})
+	waitFor("seek forward before pause", func(s app.AppState) bool {
+		return s.Player.Status == app.StatusPlaying && s.Player.Position == app.SeekStep
+	})
 	click(app.PlayPausePressed{})
 	waitFor("pause", func(s app.AppState) bool { return s.Player.Status == app.StatusPaused })
+	click(app.SeekBy{Delta: -app.SeekStep})
+	waitFor("seek backward while paused", func(s app.AppState) bool {
+		return s.Player.Status == app.StatusPaused && s.Player.Position == 0
+	})
+	click(app.SeekBy{Delta: app.SeekStep})
+	waitFor("seek forward while paused", func(s app.AppState) bool {
+		return s.Player.Status == app.StatusPaused && s.Player.Position == app.SeekStep
+	})
 	click(app.PlayPausePressed{})
 	waitFor("resume", func(s app.AppState) bool { return s.Player.Status == app.StatusPlaying })
 	click(app.NextPressed{})
