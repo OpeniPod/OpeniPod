@@ -62,6 +62,44 @@ in QEMU and check whether your phone's session delivers taps as pointer
 clicks. For the initial launch and audio checks, a connected keyboard works
 with the [keyboard controls](controls.md#keyboard).
 
+## Full-screen kiosk session
+
+Install `wmctrl` with `sudo apk add wmctrl` if it is missing. Build the player
+in the Nura checkout, then enable user-level autostart:
+
+```sh
+CGO_ENABLED=1 go build -o player ./cmd/player
+./scripts/install-nura-kiosk.sh ./player
+```
+
+The installer places the binary and launcher under `~/.local/bin` and creates
+an XDG autostart entry under `~/.config/autostart` (or
+`$XDG_CONFIG_HOME/autostart`). At the next graphical login, the launcher starts
+OpeniPod with `~/Music` and asks the X11/XWayland window manager to make the
+window full-screen. Put a local MP3 in `~/Music` before starting the player.
+The launcher reports an error if it cannot find the executable, `DISPLAY`,
+`wmctrl`, or the OpeniPod window.
+
+To return to the normal desktop, close OpeniPod with `q`, switch to Konsole,
+and run this from the source checkout:
+
+```sh
+./scripts/remove-nura-kiosk.sh
+```
+
+This disables autostart without removing the installed player. Log out and
+back in to start a normal session. If the Plasma Mobile logout control is not
+visible, end the current user session from Konsole with:
+
+```sh
+sudo loginctl terminate-user "$USER"
+```
+
+Use the
+[on-screen controls](controls.md#on-screen-controls) to select and play tracks
+without a keyboard. This requires the graphical session to deliver touchscreen
+taps as primary pointer clicks.
+
 After the VM check, test launch, local MP3 playback, audio routing and
 behavior after screen lock on each real phone. Record which device,
 Nura version and output were tested. See the [test guide](testing.md)
