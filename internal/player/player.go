@@ -13,7 +13,6 @@ import (
 
 	"github.com/gopxl/beep"
 	"github.com/gopxl/beep/effects"
-	"github.com/gopxl/beep/mp3"
 	"github.com/gopxl/beep/speaker"
 )
 
@@ -102,7 +101,7 @@ func (p *Player) Play(ctx context.Context, track music.Track) error {
 		return p.reportPlaybackError(ctx, openErr)
 	}
 
-	streamer, format, err := mp3.Decode(file)
+	streamer, format, err := decodeTrack(file)
 	if err != nil {
 		decodeErr := fmt.Errorf("decode track %q: %w", track.Path, err)
 		if closeErr := file.Close(); closeErr != nil {

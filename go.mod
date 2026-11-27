@@ -6,6 +6,7 @@ require (
 	github.com/abema/go-mp4 v1.4.1
 	github.com/dhowden/tag v0.0.0-20240417053706-3d75831295e8
 	github.com/gopxl/beep v1.4.1
+	github.com/mewkiz/flac v1.0.8
 	github.com/tcolgate/mp3 v0.0.0-20170426193717-e79c5a46d300
 	golang.org/x/exp/shiny v0.0.0-20240909161429-701f63a606c0
 	golang.org/x/image v0.25.0
@@ -19,7 +20,9 @@ require (
 	github.com/go-gl/glfw/v3.3/glfw v0.0.0-20231223183121-56fa3ac82ce7 // indirect
 	github.com/google/uuid v1.1.2 // indirect
 	github.com/hajimehoshi/go-mp3 v0.3.4 // indirect
+	github.com/icza/bitio v1.1.0 // indirect
 	github.com/jezek/xgb v1.1.1 // indirect
+	github.com/mewkiz/pkg v0.0.0-20230226050401-4010bf0fec14 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/stretchr/testify v1.9.0 // indirect
 	golang.org/x/sys v0.29.0 // indirect

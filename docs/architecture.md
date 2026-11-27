@@ -92,6 +92,13 @@ retaining source position and pause state. The player takes its mutex and then
 the speaker lock when updating the active filter, following the existing audio
 lock order. Audio callbacks do not acquire the player mutex.
 
+The real player selects MP3 or native FLAC decoding from the file signature.
+Both feed the same resampling, equalizer, pause and volume chain. The FLAC
+adapter uses `github.com/mewkiz/flac` to decode frames and owns its sample
+buffer. It indexes actual frame offsets on first seek, then discards the old
+buffer and locates the exact sample within a frame. If STREAMINFO omits the
+sample count, opening the track builds that index to determine its duration.
+
 Home and track-list movement **clamps** at the first and last item. Next and previous track commands wrap around the loaded library. Volume clamps to 0..100. Back returns to Home. These choices keep the initial navigation small and predictable.
 
 ## Concurrency and shutdown
