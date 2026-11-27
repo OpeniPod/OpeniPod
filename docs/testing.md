@@ -102,7 +102,7 @@ playing track unchanged.
 | Target | Checks |
 | --- | --- |
 | Laptop | Run `make check`, then do the native-window and listening checks above. Verify keyboard navigation, an X11 or XWayland session, and ALSA playback. |
-| Nura in QEMU (x86-64) | Build and run inside the [VM](phone.md#nura-in-qemu). Check XWayland, keyboard and mouse navigation, playback through the virtual audio device, and persistence across app restarts. |
+| Nura in QEMU (x86-64) | Build and run inside the [VM](phone.md#nura-in-qemu). Check XWayland, keyboard and mouse navigation, playback through the virtual audio device, and persistence across app restarts. Verify the on-screen controls select and play a track without a keyboard. Enable kiosk autostart, log out and back in to verify the fullscreen window, then disable autostart and verify the normal desktop returns. |
 | Redmi 4X (`santoni`) and Pixel 4a (`sunfish`) | Build for ARM64 in [Nura](phone.md#build-and-launch-in-nura). Check X11/XWayland, a connected keyboard, playback on the available audio outputs, and recovery after screen lock. Record each model and Nura version tested. |
 
 Check touch delivery on the phone. The VM uses virtual hardware. Audio
