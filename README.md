@@ -6,7 +6,7 @@ physical test targets. The desktop app runs on Linux and macOS for development
 and keyboard testing. The [Nura guide](docs/phone.md) covers running the player
 in QEMU and on a phone.
 
-The current Go app provides a graphical window, a local music library, MP3
+The current Go app provides a graphical window, a local music library, MP3/FLAC
 playback, and persistent volume and equalizer settings. Use the keyboard
 to develop and test on a laptop or in QEMU.
 
@@ -65,7 +65,9 @@ silently rescanning. Choose **Settings → Update Library** to scan the selected
 directory and replace the index.
 
 The library indexes regular files with `.mp3`, `.flac`, `.wav`, `.ogg`, `.m4a`,
-and `.aac` extensions, ignoring case; only MP3 files can currently be played.
+and `.aac` extensions, ignoring case; MP3 and native mono/stereo FLAC files
+support playback, pause, resume, and seeking. Playback selects the decoder from the
+file contents, including when the extension differs from the format.
 Scans read title, artist, album, track number and, where available, duration
 into the library index. Missing or blank titles fall back to filenames including
 extensions; missing artist, album and track number remain empty/zero.
@@ -74,7 +76,7 @@ Ogg Vorbis/Opus/FLAC use Vorbis comments; M4A uses iTunes metadata; WAV uses
 RIFF INFO or embedded ID3. Damaged optional tags produce a diagnostic warning
 and keep the recognized audio file in the library.
 Duration comes from stream/container headers or audio frame counts without
-decoding samples; unknown duration remains zero. At playback, the MP3 decoder
+decoding samples; unknown duration remains zero. At playback, the audio decoder
 supplies the playing track's duration to Now Playing.
 Files are sorted lexicographically by path within the directory. Each track
 has an absolute, cleaned path and a stable ID derived from that path. Renaming
@@ -145,7 +147,7 @@ retention and viewing commands are in [diagnostic logging](docs/logging.md).
 | `+` / `-` | Volume by 10% |
 | `q` | Quit |
 
-Open **Tracks** and choose a real MP3 from the filesystem library to play it
+Open **Tracks** and choose an MP3 or FLAC from the filesystem library to play it
 and view its progress in **Now Playing**. On a laptop or in QEMU, Left and
 Right seek by five seconds, Shift+Left and Shift+Right switch tracks, and
 `h` and `n` are aliases for previous and next. Scroll is reserved for menu

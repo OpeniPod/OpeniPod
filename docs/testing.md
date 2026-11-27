@@ -52,6 +52,14 @@ saved metadata and Update Library reads and saves changed tags.
 Fixtures and generation commands are committed, so normal tests require no
 audio tools or hardware. Full audio decoding is outside these tests.
 
+Player tests open MP3 and native FLAC tracks from a filesystem library through
+the real playback path and pull decoded samples without opening an audio
+device. They check pause, resume, forward/backward seeks, boundary clamping,
+and format detection with uppercase or mismatched extensions. FLAC decoder
+tests compare non-silent mono/stereo PCM samples at 16 and 24 bits after partial
+reads and repeated seeks, including a short final frame, an unknown sample
+count, and frame format fields inherited from STREAMINFO.
+
 Equalizer tests check the fixed presets' frequency response with synthetic
 tones, exact Off bypass, independent stereo channels, stream errors and partial
 buffers, bounded output, and consistent filter state across buffer sizes and
@@ -82,9 +90,10 @@ or a display in CI.
 
 For a manual check, run `go run ./cmd/player --music-dir /path/to/Music` from
 an X11 desktop session or Wayland with XWayland. Navigate Home, Tracks, Now
-Playing, and Settings; play and pause a real MP3; change volume and equalizer;
-select Update Library. On a laptop or in QEMU, verify Left and Right seek by
-five seconds, Shift+Left and Shift+Right switch tracks, and `h` and `n` work as
+Playing, and Settings; play, pause, resume and seek both a real MP3 and a native
+FLAC; change volume and equalizer; select Update Library. On a laptop or in
+QEMU, verify Left and Right seek by five seconds, Shift+Left and Shift+Right
+switch tracks, and `h` and `n` work as
 previous/next aliases. Scroll remains menu navigation. Resize and cover/uncover
 the window, checking that the image retains its aspect ratio and redraws. Close
 using the window manager and restart to check settings persistence. Also check
