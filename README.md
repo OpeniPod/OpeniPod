@@ -7,7 +7,7 @@ and keyboard testing. The [Nura guide](docs/phone.md) covers running the player
 in QEMU and on a phone.
 
 The current Go app provides a graphical window, a local music library, MP3
-playback, and persistent volume and equalizer settings. Use the keyboard
+playback, and persistent volume, equalizer, repeat and shuffle settings. Use the keyboard
 to develop and test on a laptop or in QEMU.
 
 ## Build and run
@@ -124,6 +124,15 @@ Off leaves audio unchanged. Bass boost emphasizes low frequencies; Vocal
 emphasizes the speech range. Enabled presets reserve headroom to avoid overload,
 so their overall loudness can be lower than Off. No additional audio dependency
 is required.
+
+Settings also exposes **Volume**, **Repeat**, and **Shuffle**. Enter changes the
+selected value; the on-screen rows do the same. Volume still uses the global
+minus/plus controls. Repeat cycles **Off → All → One → Off**; Shuffle toggles a
+per-pass random order without duplicate tracks. Repeat One takes priority at
+automatic completion, but manual Next/Previous still work. With Repeat Off,
+automatic playback stops at the end; manual navigation still wraps. Modes are
+restored after restart and default to Off in older files. See the
+[shuffle research and behavior](docs/repeat-shuffle.md) for details and tests.
 
 Diagnostics default to a separate JSON file at
 `$XDG_STATE_HOME/openipod/player.log` (or

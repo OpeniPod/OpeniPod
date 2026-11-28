@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math/rand/v2"
 	"sync"
 	"time"
 
@@ -66,7 +67,7 @@ func WithLogger(logger *slog.Logger) Option {
 
 func New(player Player, library Library, storage Storage, input Input, ui Renderer, options ...Option) *App {
 	a := &App{
-		state:   AppState{Screen: ScreenHome, Settings: DefaultSettings()},
+		state:   AppState{Screen: ScreenHome, Settings: DefaultSettings(), shuffleSeed: rand.Uint64()},
 		player:  player,
 		library: library,
 		storage: storage,

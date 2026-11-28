@@ -85,7 +85,7 @@ func TestSettingsPersistAcrossAppRestarts(t *testing.T) {
 	defer cancel()
 	firstPlayer := player.NewFake()
 	first := app.New(firstPlayer, library.NewFake(), storage.NewFile(path), eventInput{
-		events: []app.Event{app.VolumeChanged{Delta: 20}, app.QuitRequested{}},
+		events: []app.Event{app.VolumeChanged{Delta: 20}, app.RepeatChanged{Mode: app.RepeatAll}, app.ShuffleChanged{Enabled: true}, app.QuitRequested{}},
 	}, silentUI{})
 	if err := first.Run(ctx); err != nil {
 		t.Fatal(err)
@@ -94,14 +94,18 @@ func TestSettingsPersistAcrossAppRestarts(t *testing.T) {
 		t.Fatalf("first volume = %d, want 70", firstPlayer.Volume)
 	}
 	secondPlayer := player.NewFake()
+	view := &recordingUI{}
 	second := app.New(secondPlayer, library.NewFake(), storage.NewFile(path), eventInput{
 		events: []app.Event{app.QuitRequested{}},
-	}, silentUI{})
+	}, view)
 	if err := second.Run(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if secondPlayer.Volume != 70 {
 		t.Fatalf("restored volume = %d, want 70", secondPlayer.Volume)
+	}
+	if got := view.states[len(view.states)-1].Settings; got.Repeat != app.RepeatAll || !got.Shuffle {
+		t.Fatalf("restored modes = %+v", got)
 	}
 }
 

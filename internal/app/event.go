@@ -24,6 +24,8 @@ type NextPressed struct{}
 type PreviousPressed struct{}
 type SeekBy struct{ Delta time.Duration }
 type VolumeChanged struct{ Delta int }
+type RepeatChanged struct{ Mode RepeatMode }
+type ShuffleChanged struct{ Enabled bool }
 type QuitRequested struct{}
 
 const SeekStep = 5 * time.Second
@@ -48,6 +50,8 @@ func (NextPressed) isEvent()             {}
 func (PreviousPressed) isEvent()         {}
 func (SeekBy) isEvent()                  {}
 func (VolumeChanged) isEvent()           {}
+func (RepeatChanged) isEvent()           {}
+func (ShuffleChanged) isEvent()          {}
 func (QuitRequested) isEvent()           {}
 func (PlaybackStarted) isEvent()         {}
 func (PlaybackPaused) isEvent()          {}

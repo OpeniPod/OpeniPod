@@ -26,7 +26,7 @@ func TestScrollClampsSelection(t *testing.T) {
 		{"empty tracks", ScreenTracks, 0, 1, 0},
 		{"settings reaches equalizer", ScreenSettings, 0, 1, 1},
 		{"settings lower bound", ScreenSettings, 0, -2, 0},
-		{"settings upper bound", ScreenSettings, 1, 5, 1},
+		{"settings upper bound", ScreenSettings, 1, 5, SettingsShuffle},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			state := AppState{

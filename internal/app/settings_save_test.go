@@ -126,6 +126,8 @@ func TestSettingsDoNotSaveUnchangedState(t *testing.T) {
 		{"renders only", []app.Event{app.Scroll{Delta: 1}, app.SelectPressed{}, app.BackPressed{}}},
 		{"returned to saved value", []app.Event{app.VolumeChanged{Delta: 10}, app.VolumeChanged{Delta: -10}}},
 		{"no change", []app.Event{app.VolumeChanged{Delta: 0}}},
+		{"repeat returned to default", []app.Event{app.RepeatChanged{Mode: app.RepeatAll}, app.RepeatChanged{Mode: app.RepeatOff}}},
+		{"shuffle returned to default", []app.Event{app.ShuffleChanged{Enabled: true}, app.ShuffleChanged{Enabled: false}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			store := &recordingStorage{}

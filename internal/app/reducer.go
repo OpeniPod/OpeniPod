@@ -6,7 +6,7 @@ import (
 	"github.com/OpeniPod/OpeniPod/internal/music"
 )
 
-const settingsMenuItemCount = 2
+const settingsMenuItemCount = SettingsShuffle + 1
 
 type command interface{ isCommand() }
 
@@ -82,10 +82,10 @@ func Reduce(state AppState, event Event) (AppState, []command) {
 			}
 		case ScreenSettings:
 			switch state.Navigation.SettingsIndex {
-			case 0:
+			case SettingsUpdateLibrary:
 				state.Error = ""
 				return state, []command{refreshLibrary{}}
-			case 1:
+			case SettingsEqualizer:
 				preset := EqualizerOff
 				switch state.Settings.Equalizer {
 				case EqualizerOff:
@@ -95,10 +95,19 @@ func Reduce(state AppState, event Event) (AppState, []command) {
 				}
 				state.Settings.Equalizer = preset
 				return state, []command{setEqualizer{preset}, saveSettings{}}
+			case SettingsVolume:
+				return Reduce(state, VolumeChanged{Delta: 10})
+			case SettingsRepeat:
+				return Reduce(state, RepeatChanged{Mode: nextRepeat(state.Settings.Repeat)})
+			case SettingsShuffle:
+				return Reduce(state, ShuffleChanged{Enabled: !state.Settings.Shuffle})
 			}
 		case ScreenTracks:
 			if len(state.Library.Tracks) > 0 {
 				track := state.Library.Tracks[state.Navigation.TrackIndex]
+				if state.Settings.Shuffle {
+					state = rebuildOrder(state, track.ID, "")
+				}
 				return startTrack(state, track)
 			}
 		}
@@ -112,6 +121,9 @@ func Reduce(state AppState, event Event) (AppState, []command) {
 			return state, []command{resumePlayback{}}
 		case StatusStopped:
 			if state.Player.HasTrack {
+				if state.Settings.Shuffle {
+					state = rebuildOrder(state, state.Player.Track.ID, "")
+				}
 				return startTrack(state, state.Player.Track)
 			}
 		}
@@ -127,33 +139,59 @@ func Reduce(state AppState, event Event) (AppState, []command) {
 			state.Settings.Volume = volume
 			return state, []command{setVolume{volume}, saveSettings{}}
 		}
+	case RepeatChanged:
+		if validRepeat(e.Mode) && e.Mode != state.Settings.Repeat {
+			state.Settings.Repeat = e.Mode
+			return state, []command{saveSettings{}}
+		}
+	case ShuffleChanged:
+		if e.Enabled != state.Settings.Shuffle {
+			state.Settings.Shuffle = e.Enabled
+			state = rebuildOrder(state, currentTrackID(state), "")
+			return state, []command{saveSettings{}}
+		}
 	case SettingsLoaded:
 		settings := e.Settings
 		settings.Volume = clamp(settings.Volume, 0, 100)
 		if !settings.Equalizer.Valid() {
 			settings.Equalizer = EqualizerOff
 		}
+		if !validRepeat(settings.Repeat) {
+			settings.Repeat = RepeatOff
+		}
 		state.Settings = settings
+		state = rebuildOrder(state, currentTrackID(state), "")
 	case LibraryLoaded:
 		state.Library.Tracks = append([]music.Track(nil), e.Tracks...)
 		state.Navigation.TrackIndex = clamp(state.Navigation.TrackIndex, 0, max(0, len(e.Tracks)-1))
 		state.Error = ""
+		state = rebuildOrder(state, currentTrackID(state), "")
 	case LibraryLoadFailed:
 		state.Error = e.Err.Error()
 	case PlaybackStarted:
+		if state.Player.Status == StatusStarting && state.Player.HasTrack && state.Player.Track.ID != e.Track.ID {
+			// A quick manual switch can leave the old confirmation queued.
+			break
+		}
 		state.Player.Track = e.Track
 		state.Player.HasTrack = true
 		state.Player.Status = StatusPlaying
 		state.Player.Position = 0
 		state.Error = ""
 	case PlaybackPaused:
+		if state.Player.Status == StatusStarting {
+			break
+		}
 		state.Player.Status = StatusPaused
 	case PlaybackResumed:
+		if state.Player.Status == StatusStarting {
+			break
+		}
 		state.Player.Status = StatusPlaying
 	case PlaybackPositionChanged:
 		state.Player.Position = e.Position
 	case TrackFinished:
-		state.Player.Status = StatusStopped
+		return finishTrack(state)
 	case PlaybackError:
 		state.Player.Status = StatusStopped
 		state.Error = e.Err.Error()
@@ -176,10 +214,16 @@ func startTrack(state AppState, track music.Track) (AppState, []command) {
 	state.Player.Status = StatusStarting
 	state.Player.Position = 0
 	state.Error = ""
+	if index := trackIndex(state.Library.Tracks, track.ID); index >= 0 {
+		state.Navigation.TrackIndex = index
+	}
 	return state, []command{playTrack{track}}
 }
 
 func stepTrack(state AppState, delta int) (AppState, []command) {
+	if state.Settings.Shuffle {
+		return stepShuffledTrack(state, delta)
+	}
 	tracks := state.Library.Tracks
 	if len(tracks) == 0 {
 		return state, nil

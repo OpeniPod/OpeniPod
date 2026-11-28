@@ -99,16 +99,18 @@ func layoutFor(state app.AppState) screenLayout {
 			{Bounds: image.Rect(margin, 96, contentRight, 130), Index: 1},
 			{Bounds: image.Rect(margin, 135, contentRight, 169), Index: 2},
 		},
-		settingsRows: []itemRegion{
-			{Bounds: image.Rect(margin, 57, contentRight, 101), Index: 0},
-			{Bounds: image.Rect(margin, 108, contentRight, 163), Index: 1},
-		},
 		back:       image.Rect(margin, transportTop, 61, transportBottom),
 		previous:   image.Rect(63, transportTop, 110, transportBottom),
 		playPause:  image.Rect(112, transportTop, 166, transportBottom),
 		next:       image.Rect(168, transportTop, contentRight, transportBottom),
 		volumeDown: image.Rect(margin, volumeTop, 53, volumeBottom),
 		volumeUp:   image.Rect(187, volumeTop, contentRight, volumeBottom),
+	}
+	for i := 0; i <= app.SettingsShuffle; i++ {
+		y := 53 + i*31
+		layout.settingsRows = append(layout.settingsRows, itemRegion{
+			Bounds: image.Rect(margin, y, contentRight, y+29), Index: i,
+		})
 	}
 
 	tracks := state.Library.Tracks
@@ -345,18 +347,29 @@ func (d *Display) renderNowPlaying(img *image.RGBA, state app.AppState) {
 
 func (d *Display) renderSettings(img *image.RGBA, state app.AppState, layout screenLayout) {
 	selected := clamp(state.Navigation.SettingsIndex, 0, len(layout.settingsRows)-1)
+	shuffle := "Off"
+	if state.Settings.Shuffle {
+		shuffle = "On"
+	}
+	labels := []string{
+		"Update Library",
+		"Equalizer: " + state.Settings.Equalizer.String(),
+		fmt.Sprintf("Volume: %d%%", state.Settings.Volume),
+		"Repeat: " + state.Settings.Repeat.String(),
+		"Shuffle: " + shuffle,
+	}
 	for i, region := range layout.settingsRows {
 		d.drawClickableRow(img, region.Bounds, i == selected)
+		d.drawText(img, d.bodyFace, labels[i], region.Bounds.Min.X+11, region.Bounds.Min.Y+20, colorText)
 	}
-	d.drawText(img, d.bodyFace, "Update Library", layout.settingsRows[0].Bounds.Min.X+11, 83, colorText)
-	d.drawText(img, d.bodyFace, "Equalizer", layout.settingsRows[1].Bounds.Min.X+11, 132, colorText)
-	d.drawText(img, d.smallFace, state.Settings.Equalizer.String(), layout.settingsRows[1].Bounds.Min.X+11, 151, colorAccent)
-
-	hint := "Scan music folder for changes"
-	if selected == 1 {
-		hint = "Cycle sound preset"
+	hints := []string{
+		"Scan music folder for changes",
+		"Cycle sound preset",
+		"Enter: +10; use +/- to adjust",
+		"Cycle Off / All / One",
+		"Toggle shuffled playback",
 	}
-	d.drawText(img, d.smallFace, hint, margin, 204, colorMuted)
+	d.drawText(img, d.smallFace, hints[selected], margin, 217, colorMuted)
 }
 
 func (d *Display) renderError(img *image.RGBA, message string) {
